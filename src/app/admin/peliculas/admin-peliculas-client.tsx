@@ -1,24 +1,64 @@
 "use client";
 
-import Image from "next/image";
-import { useState } from "react";
-import { CircleUserRound, Pencil, Plus, Search, Trash2, Upload } from "lucide-react";
+import { useState, useTransition, type FormEvent } from "react";
+import { CircleUserRound, Plus, Search, Trash2, Upload } from "lucide-react";
 import { Modal } from "@/components/cinema/Modal";
-import { MOVIES } from "@/lib/cinema-data";
+import { PosterImage } from "@/components/cinema/PosterImage";
+import { CLASIFICACIONES, GENEROS } from "@/lib/cartelera";
+import type { PeliculaRow } from "@/lib/db-types";
+import { crearPelicula, eliminarPelicula } from "./actions";
 
 const NAV = ["Dashboard", "Películas", "Funciones", "Salas & asientos", "Reportes", "Usuarios"];
 
-export function AdminPeliculasClient() {
-  const [editing, setEditing] = useState<string | null>(null);
-  const movie = MOVIES.find((m) => m.slug === editing);
+export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }) {
+  const [creando, setCreando] = useState(false);
+  const [aBorrar, setABorrar] = useState<PeliculaRow | null>(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [archivo, setArchivo] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [pendiente, startTransition] = useTransition();
+
+  const filtradas = peliculas.filter((p) =>
+    p.titulo.toLowerCase().includes(busqueda.trim().toLowerCase()),
+  );
+
+  const cerrarFormulario = () => {
+    setCreando(false);
+    setArchivo("");
+    setError(null);
+  };
+
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const datos = new FormData(e.currentTarget);
+    setError(null);
+    startTransition(async () => {
+      const res = await crearPelicula(datos);
+      if (res.ok) {
+        cerrarFormulario();
+        setAviso("Película registrada correctamente.");
+      } else {
+        setError(res.error);
+      }
+    });
+  };
+
+  const confirmarBaja = () => {
+    if (!aBorrar) return;
+    const { id, titulo } = aBorrar;
+    startTransition(async () => {
+      const res = await eliminarPelicula(id);
+      setABorrar(null);
+      setAviso(res.ok ? `"${titulo}" se dio de baja de la cartelera.` : res.error);
+    });
+  };
 
   return (
     <div className="min-h-screen">
       <div className="mx-auto grid max-w-[1400px] gap-8 px-6 py-8 lg:grid-cols-[260px_1fr]">
         <aside className="card-surface h-fit overflow-hidden">
-          <h2 className="border-b border-border px-5 py-4 text-2xl tracking-wide">
-            Navegación
-          </h2>
+          <h2 className="border-b border-border px-5 py-4 text-2xl tracking-wide">Navegación</h2>
           <ul>
             {NAV.map((item) => (
               <li key={item}>
@@ -47,12 +87,26 @@ export function AdminPeliculasClient() {
           <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
             <div className="relative w-full max-w-xs">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input className="field pl-9" placeholder="Buscar película..." />
+              <input
+                className="field pl-9"
+                placeholder="Buscar película..."
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+              />
             </div>
-            <button className="btn-primary" onClick={() => setEditing("batman")}>
+            <button className="btn-primary" onClick={() => setCreando(true)}>
               <Plus className="h-4 w-4" /> Registrar nueva película
             </button>
           </div>
+
+          {aviso && (
+            <p
+              role="status"
+              className="mx-6 mb-4 rounded-md border border-border bg-surface-2 px-4 py-2 text-sm text-secondary"
+            >
+              {aviso}
+            </p>
+          )}
 
           <div className="overflow-x-auto px-6 pb-6">
             <table className="w-full border-collapse text-sm">
@@ -67,39 +121,34 @@ export function AdminPeliculasClient() {
                 </tr>
               </thead>
               <tbody>
-                {MOVIES.map((m) => (
+                {filtradas.map((m) => (
                   <tr
                     key={m.id}
                     className="border-b border-border transition-colors hover:bg-surface-2/60"
                   >
-                    <td className="px-4 py-3 text-muted-foreground">{m.id}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {String(m.id).padStart(2, "0")}
+                    </td>
                     <td className="px-4 py-3">
-                      <Image
-                        src={m.poster}
-                        alt={`Póster de ${m.title}`}
-                        width={512}
-                        height={768}
+                      <PosterImage
+                        src={m.poster_url}
+                        alt={`Póster de ${m.titulo}`}
                         className="h-14 w-10 rounded-md object-cover"
                       />
                     </td>
-                    <td className="px-4 py-3 font-semibold">{m.title}</td>
+                    <td className="px-4 py-3 font-semibold">{m.titulo}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-md bg-primary/15 px-2 py-1 text-xs font-bold text-primary">
-                        {m.rating}
+                        {m.clasificacion}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{m.genre}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{m.genero ?? "—"}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
+                        {/* Editar es del Sprint 7 (SCRUM-67) */}
                         <button
-                          onClick={() => setEditing(m.slug)}
-                          aria-label={`Editar ${m.title}`}
-                          className="rounded-md border border-border p-2 text-secondary transition-colors hover:border-primary hover:text-primary"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          aria-label={`Eliminar ${m.title}`}
+                          onClick={() => setABorrar(m)}
+                          aria-label={`Dar de baja ${m.titulo}`}
                           className="rounded-md border border-border p-2 text-secondary transition-colors hover:border-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -110,81 +159,123 @@ export function AdminPeliculasClient() {
                 ))}
               </tbody>
             </table>
+            {filtradas.length === 0 && (
+              <p className="px-4 py-6 text-sm text-muted-foreground">No hay películas para mostrar.</p>
+            )}
           </div>
         </section>
       </div>
 
+      {/* Registrar película (SCRUM-103) */}
       <Modal
-        open={!!editing}
+        open={creando}
         wide
-        title="Editar o agregar película"
-        onClose={() => setEditing(null)}
+        title="Registrar película"
+        onClose={cerrarFormulario}
         footer={
           <>
-            <button className="btn-ghost" onClick={() => setEditing(null)}>
+            <button type="button" className="btn-ghost" onClick={cerrarFormulario} disabled={pendiente}>
               Cancelar
             </button>
-            <button className="btn-primary" onClick={() => setEditing(null)}>
-              Guardar
+            <button type="submit" form="form-pelicula" className="btn-primary" disabled={pendiente}>
+              {pendiente ? "Guardando..." : "Guardar"}
             </button>
           </>
         }
       >
-        <p className="mb-5 text-sm text-muted-foreground">
-          Película: <span className="font-semibold text-primary">{movie?.title}</span>
-        </p>
-        <div className="grid gap-5 md:grid-cols-2">
+        <form id="form-pelicula" onSubmit={onSubmit} className="grid gap-5 md:grid-cols-2">
           <div className="space-y-4">
             <div>
-              <label className="label">Título</label>
-              <input className="field" defaultValue={movie?.title} />
+              <label className="label" htmlFor="titulo">Título</label>
+              <input id="titulo" name="titulo" className="field" required maxLength={150} />
             </div>
             <div>
-              <label className="label">Clasificación</label>
-              <select className="field" defaultValue={movie?.rating}>
-                {["A", "B", "B12", "B15", "C"].map((r) => (
+              <label className="label" htmlFor="clasificacion">Clasificación</label>
+              <select id="clasificacion" name="clasificacion" className="field" defaultValue="A">
+                {CLASIFICACIONES.map((r) => (
                   <option key={r}>{r}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="label">Género</label>
-              <select className="field" defaultValue={movie?.genre}>
-                {["Super-héroes", "Infantil", "Histórica", "Terror", "Comedia"].map((g) => (
+              <label className="label" htmlFor="genero">Género</label>
+              <select id="genero" name="genero" className="field" defaultValue={GENEROS[0]}>
+                {GENEROS.map((g) => (
                   <option key={g}>{g}</option>
                 ))}
               </select>
             </div>
-              <div>
-                <label className="label">Director</label>
-                <input className="field" defaultValue={movie?.director} />
-              </div>
-              <div>
-                <label className="label">Elenco</label>
-                <input className="field" defaultValue={movie?.actor} />
-              </div>
-              <div>
-                <label className="label">Estudio</label>
-                <input className="field" defaultValue={movie?.studio} />
-              </div>
           </div>
           <div className="space-y-4">
             <div>
               <label className="label">Poster</label>
-              <button className="btn-light w-full">
-                <Upload className="h-4 w-4" /> Elegir un archivo
-              </button>
+              <label className="btn-light w-full cursor-pointer">
+                <Upload className="h-4 w-4" /> {archivo || "Elegir un archivo"}
+                <input
+                  type="file"
+                  name="poster"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  onChange={(e) => setArchivo(e.target.files?.[0]?.name ?? "")}
+                />
+              </label>
+              <p className="mt-1 text-xs text-muted-foreground">JPG, PNG o WEBP · máximo 4 MB</p>
             </div>
             <div>
-              <label className="label">Sinópsis</label>
+              <label className="label" htmlFor="sinopsis">Descripción</label>
               <textarea
-                className="field h-[230px] resize-none"
-                placeholder="Ingresar sinópsis..."
-                defaultValue={movie?.synopsis}
+                id="sinopsis"
+                name="sinopsis"
+                required
+                minLength={10}
+                maxLength={2000}
+                className="field h-[124px] resize-none"
+                placeholder="Ingresar descripción..."
               />
             </div>
           </div>
-        </div>
+          <div className="grid gap-4 md:col-span-2 md:grid-cols-3">
+            <div>
+              <label className="label" htmlFor="director">Director</label>
+              <input id="director" name="director" className="field" maxLength={100} />
+            </div>
+            <div>
+              <label className="label" htmlFor="actores">Actor principal</label>
+              <input id="actores" name="actores" className="field" maxLength={100} />
+            </div>
+            <div>
+              <label className="label" htmlFor="estudio">Estudio</label>
+              <input id="estudio" name="estudio" className="field" maxLength={100} />
+            </div>
+          </div>
+          {error && (
+            <p role="alert" className="text-sm text-destructive md:col-span-2">
+              {error}
+            </p>
+          )}
+        </form>
+      </Modal>
+
+      {/* Dar de baja (SCRUM-106) */}
+      <Modal
+        open={!!aBorrar}
+        title="Dar de baja película"
+        onClose={() => setABorrar(null)}
+        footer={
+          <>
+            <button className="btn-ghost" onClick={() => setABorrar(null)} disabled={pendiente}>
+              Cancelar
+            </button>
+            <button className="btn-primary" onClick={confirmarBaja} disabled={pendiente}>
+              {pendiente ? "Procesando..." : "Dar de baja"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          ¿Seguro que quieres dar de baja <span className="font-semibold text-foreground">{aBorrar?.titulo}</span>?
+          Dejará de mostrarse en la cartelera. Esta acción no borra sus datos.
+        </p>
       </Modal>
     </div>
   );

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { getCartelera } from "@/lib/db/cartelera";
 import { CarteleraClient } from "./cartelera-client";
+
+export const dynamic = "force-dynamic"; // la cartelera depende de la fecha y hora actuales
 
 export const metadata: Metadata = {
   title: "Órbita Cinema | Cartelera y compra de boletos",
@@ -11,6 +14,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Page() {
-  return <CarteleraClient />;
+export default async function Page() {
+  const { peliculas, hoy } = await getCartelera();
+  return <CarteleraClient peliculas={peliculas} hoy={hoy} />;
 }

@@ -7,10 +7,22 @@ Sistema web de reservación de entradas de cine (Universidad Galileo – Prácti
 ## Puesta en marcha
 
 ```bash
-npm install
+bun install
 cp .env.example .env.local   # completar con las llaves de Supabase
-npm run dev                  # http://localhost:3000
+bun run dev                  # http://localhost:3000
 ```
+
+Next.js se sigue ejecutando con Node (v20+); Bun se usa como gestor de paquetes y para correr los scripts.
+
+## Sprint 1 (SCRUM-11 a 17, 101, 103, 104, 106)
+
+1. En Supabase > SQL Editor ejecutar `supabase/sprint1.sql` (columnas nuevas, políticas RLS de lectura, bucket `posters`). Es idempotente.
+2. Completar `.env.local` (incluye `SUPABASE_SERVICE_ROLE_KEY`, solo servidor).
+3. `/` lee `pelicula`, `funcion` y `sala` de Supabase; filtros por fecha, rango horario, idioma y clasificación.
+4. `/pelicula/[slug]` muestra las funciones por fecha y sala.
+5. `/admin/peliculas` registra (con póster), lista y da de baja películas (`activa = false`) mediante Server Actions.
+
+> Hasta el Sprint 2 (login) el panel admin no tiene autenticación: no lo desplieguen públicamente con `AUTH_GUARD=off`.
 
 `AUTH_GUARD=off` (por defecto) deja navegar `/perfil` y `/admin/*` mientras la autenticación real no esté lista. Con `AUTH_GUARD=on`, `src/middleware.ts` exige sesión y rol (`app_metadata.rol` = `Cliente` | `Colaborador` | `Administrador`).
 
@@ -26,13 +38,15 @@ src/
 │  ├─ asientos/                  # Mapa interactivo de butacas
 │  ├─ pago/                      # Pasarela prototipo (recargo 5 %)
 │  ├─ login/, perfil/            # Cuenta de cliente
-│  ├─ admin/peliculas/           # Panel Administrador (sin enlace en la navegación, RNF-015)
+│  ├─ admin/peliculas/           # Panel Administrador (page + client + actions.ts), sin enlace en la navegación (RNF-015)
 │  └─ api/                       # (por crear) Route Handlers: bloqueo de asientos, pago, boleto, correo
 ├─ components/
 │  ├─ cinema/                    # SiteHeader, Modal, FunctionHeader
 │  └─ ui/                        # shadcn/ui
 ├─ lib/
-│  ├─ cinema-data.ts             # datos estáticos de prototipo (películas, salas, precios)
+│  ├─ db/cartelera.ts            # consultas a Supabase (cartelera, detalle, listado admin)
+│  ├─ cartelera.ts               # tipos y filtros puros (servidor y cliente)
+│  ├─ cinema-data.ts             # datos estáticos: solo los usan entradas/asientos/pago (sprints siguientes)
 │  ├─ search-params.ts           # parseo/armado del query string del flujo de compra
 │  ├─ roles.ts                   # roles del sistema
 │  └─ supabase/{client,server}.ts
@@ -61,4 +75,4 @@ Se eliminó lo específico de Lovable/Vite/Nitro (`server.ts`, `start.ts`, `rout
 
 ## Pendiente (según la documentación)
 
-La UI sigue usando datos estáticos de `cinema-data.ts`. Falta conectar: modelo en Supabase (DER), bloqueo temporal de 5 min y liberación automática, pago prototipo con validaciones, reserva + puntos de lealtad, boleto PDF + QR, correo de confirmación, y los paneles de Colaborador/Administrador.
+`entradas`, `asientos` y `pago` siguen con datos estáticos de `cinema-data.ts` (sprints 3 y 4), así que al pulsar "Continuar" desde una película de la base de datos esas pantallas todavía muestran el encabezado de prueba. Faltan además: tablas `asiento`, `reserva`, `detalle_reserva`, `pago` y `boleto`, bloqueo temporal de 5 min, boleto PDF + QR, correo de confirmación, login/roles y los paneles de Colaborador y Administrador restantes.

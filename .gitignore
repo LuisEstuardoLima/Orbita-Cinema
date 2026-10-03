@@ -18,7 +18,8 @@ npm-debug.log*
 # variables de entorno (nunca subir llaves reales)
 .env
 .env*.local
-
+.env.example
+.env.local
 # editor / sistema
 .vscode/*
 !.vscode/extensions.json
