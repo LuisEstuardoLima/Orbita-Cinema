@@ -95,12 +95,20 @@ export function PeliculaClient({ slug }: { slug: string }) {
                 <dd className="text-muted-foreground">{movie.director}</dd>
               </div>
               <div className="flex gap-2">
-                <dt className="font-semibold text-secondary">Actor principal:</dt>
+                <dt className="font-semibold text-secondary">Actores:</dt>
                 <dd className="text-muted-foreground">{movie.actor}</dd>
               </div>
               <div className="flex gap-2">
                 <dt className="font-semibold text-secondary">Estudio:</dt>
                 <dd className="text-muted-foreground">{movie.studio}</dd>
+              </div>
+                <div className="flex gap-2">
+                <dt className="font-semibold text-secondary">Género:</dt>
+                <dd className="text-muted-foreground">{movie.genre}</dd>
+              </div>
+                <div className="flex gap-2">
+                <dt className="font-semibold text-secondary">Clasificación:</dt>
+                <dd className="text-muted-foreground">{movie.rating}</dd>
               </div>
             </dl>
           </div>

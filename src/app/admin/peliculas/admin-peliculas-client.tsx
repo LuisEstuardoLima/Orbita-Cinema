@@ -155,6 +155,18 @@ export function AdminPeliculasClient() {
                 ))}
               </select>
             </div>
+              <div>
+                <label className="label">Director</label>
+                <input className="field" defaultValue={movie?.director} />
+              </div>
+              <div>
+                <label className="label">Elenco</label>
+                <input className="field" defaultValue={movie?.actor} />
+              </div>
+              <div>
+                <label className="label">Estudio</label>
+                <input className="field" defaultValue={movie?.studio} />
+              </div>
           </div>
           <div className="space-y-4">
             <div>
@@ -164,10 +176,10 @@ export function AdminPeliculasClient() {
               </button>
             </div>
             <div>
-              <label className="label">Descripción</label>
+              <label className="label">Sinópsis</label>
               <textarea
-                className="field h-[124px] resize-none"
-                placeholder="Ingresar descripción..."
+                className="field h-[230px] resize-none"
+                placeholder="Ingresar sinópsis..."
                 defaultValue={movie?.synopsis}
               />
             </div>
