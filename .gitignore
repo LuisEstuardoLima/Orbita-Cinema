@@ -1,0 +1,27 @@
+# dependencias
+node_modules
+.pnp
+.pnp.*
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# vercel
+.vercel
+
+# logs
+*.log
+npm-debug.log*
+
+# variables de entorno (nunca subir llaves reales)
+.env
+.env*.local
+
+# editor / sistema
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.tsbuildinfo

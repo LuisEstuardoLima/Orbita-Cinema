@@ -1,0 +1,126 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Órbita Cinema design system.
+ * Palette: #2E2E2E (gris oscuro), #D9D9D9 (gris claro), #FFA21F (naranja).
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --font-display: var(--font-bebas), "Bebas Neue", sans-serif;
+  --font-sans: var(--font-barlow), "Barlow", system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --shadow-card: 0 10px 30px -12px oklch(0 0 0 / 0.55);
+  --shadow-glow: 0 8px 24px -8px oklch(0.784 0.161 65 / 0.45);
+}
+
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.24 0 0);
+  --foreground: oklch(0.95 0 0);
+  --surface: oklch(0.32 0 0); /* #2E2E2E */
+  --surface-2: oklch(0.38 0 0);
+  --card: oklch(0.32 0 0);
+  --card-foreground: oklch(0.95 0 0);
+  --popover: oklch(0.3 0 0);
+  --popover-foreground: oklch(0.95 0 0);
+  --primary: oklch(0.784 0.161 65); /* #FFA21F */
+  --primary-foreground: oklch(0.2 0 0);
+  --secondary: oklch(0.883 0 0); /* #D9D9D9 */
+  --secondary-foreground: oklch(0.24 0 0);
+  --muted: oklch(0.36 0 0);
+  --muted-foreground: oklch(0.75 0 0);
+  --accent: oklch(0.784 0.161 65);
+  --accent-foreground: oklch(0.2 0 0);
+  --destructive: oklch(0.6 0.2 25);
+  --destructive-foreground: oklch(0.97 0 0);
+  --border: oklch(0.42 0 0);
+  --input: oklch(0.42 0 0);
+  --ring: oklch(0.784 0.161 65);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all duration-200 cursor-pointer;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all duration-200 cursor-pointer;
+    @apply bg-primary text-primary-foreground hover:brightness-110 active:scale-[0.98];
+    box-shadow: var(--shadow-glow);
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all duration-200 cursor-pointer;
+    @apply border border-border bg-transparent text-foreground hover:border-primary hover:text-primary;
+  }
+  .btn-light {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all duration-200 cursor-pointer;
+    @apply bg-secondary text-secondary-foreground hover:brightness-95;
+  }
+  .card-surface {
+    @apply rounded-xl border border-border bg-surface;
+    box-shadow: var(--shadow-card);
+  }
+  .field {
+    @apply w-full rounded-lg border border-input bg-background/60 px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-muted-foreground;
+  }
+  .chip {
+    @apply inline-flex items-center justify-center rounded-md border border-border bg-surface-2 px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer hover:border-primary hover:text-primary;
+  }
+  .chip-active {
+    @apply border-primary bg-primary text-primary-foreground hover:text-primary-foreground;
+  }
+  .section-title {
+    @apply text-2xl font-normal tracking-wide text-foreground;
+  }
+}
