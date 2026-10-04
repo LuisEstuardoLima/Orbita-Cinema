@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPeliculaBySlug } from "@/lib/db/cartelera";
-import { str, type SP } from "@/lib/search-params";
+import { num, str, type SP } from "@/lib/search-params";
 import { PeliculaClient } from "./pelicula-client";
 
 export const dynamic = "force-dynamic";
@@ -33,5 +33,11 @@ export default async function Page({
   const sp = await searchParams;
   const pelicula = await getPeliculaBySlug(slug);
   if (!pelicula) notFound();
-  return <PeliculaClient pelicula={pelicula} fechaInicial={str(sp["fecha"]) || undefined} />;
+  return (
+    <PeliculaClient
+      pelicula={pelicula}
+      fechaInicial={str(sp["fecha"]) || undefined}
+      funcionInicial={num(sp["funcion"]) || undefined}
+    />
+  );
 }

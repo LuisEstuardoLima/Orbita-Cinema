@@ -2,9 +2,13 @@ import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ahoraGuatemala } from "@/lib/fechas";
+import { addDays } from "date-fns";
+import { ahoraGuatemala, parseFecha, toFecha } from "@/lib/fechas";
 import type { FuncionRow, PeliculaRow, SalaRow } from "@/lib/db-types";
 import type { FuncionVM, PeliculaVM } from "@/lib/cartelera";
+
+/** Días (contando hoy) que muestra el detalle de una película. */
+const DIAS_DETALLE = 7;
 
 const vacio = (v: string | null | undefined) => v?.trim() || "";
 
@@ -78,10 +82,11 @@ export async function getCartelera(): Promise<{ hoy: string; peliculas: Pelicula
   };
 }
 
-/** SCRUM-15/17/101: una película con todas sus próximas funciones. */
+/** SCRUM-15/17/101: una película con sus funciones de los próximos DIAS_DETALLE días. */
 export const getPeliculaBySlug = cache(async (slug: string): Promise<PeliculaVM | null> => {
   const supabase = await createClient();
   const ahora = ahoraGuatemala();
+  const hasta = toFecha(addDays(parseFecha(ahora.fecha), DIAS_DETALLE - 1));
 
   const pel = await supabase
     .from("pelicula")
@@ -100,6 +105,7 @@ export const getPeliculaBySlug = cache(async (slug: string): Promise<PeliculaVM 
       .eq("id_pelicula", pelicula.id)
       .eq("activa", true)
       .gte("fecha", ahora.fecha)
+      .lte("fecha", hasta)
       .order("fecha")
       .order("hora"),
     supabase.from("sala").select("*").eq("activa", true),

@@ -16,28 +16,50 @@ const fechaPill = (fecha: string) => mayus(format(parseFecha(fecha), "EEE dd MMM
 export function PeliculaClient({
   pelicula,
   fechaInicial,
+  funcionInicial,
 }: {
   pelicula: PeliculaVM;
   fechaInicial?: string;
+  funcionInicial?: number;
 }) {
   const fechas = useMemo(
     () => [...new Set(pelicula.funciones.map((f) => f.fecha))],
     [pelicula.funciones],
   );
-  const fechaDefault = fechaInicial && fechas.includes(fechaInicial) ? fechaInicial : (fechas[0] ?? "");
+  // Si la URL trae una función vigente, manda sobre la fecha (su día se deduce de ella).
+  const funcionUrl = pelicula.funciones.find((f) => f.id === funcionInicial);
+  const fechaDefault =
+    funcionUrl?.fecha ??
+    (fechaInicial && fechas.includes(fechaInicial) ? fechaInicial : (fechas[0] ?? ""));
 
   const [fecha, setFecha] = useState(fechaDefault);
   const [selId, setSelId] = useState<number | null>(
-    pelicula.funciones.find((f) => f.fecha === fechaDefault)?.id ?? null,
+    funcionUrl?.id ?? pelicula.funciones.find((f) => f.fecha === fechaDefault)?.id ?? null,
   );
 
   const delDia = pelicula.funciones.filter((f) => f.fecha === fecha);
   const salas = agruparPorSala(delDia);
   const actual = pelicula.funciones.find((f) => f.id === selId) ?? null;
 
+  /** Refleja la selección en la URL (sin recargar) para conservarla al recargar o volver atrás. */
+  const sincronizarUrl = (f: string, id: number | null) => {
+    const q = new URLSearchParams(window.location.search);
+    q.set("fecha", f);
+    if (id == null) q.delete("funcion");
+    else q.set("funcion", String(id));
+    window.history.replaceState(null, "", `?${q.toString()}`);
+  };
+
   const cambiarFecha = (f: string) => {
+    const id = pelicula.funciones.find((fn) => fn.fecha === f)?.id ?? null;
     setFecha(f);
-    setSelId(pelicula.funciones.find((fn) => fn.fecha === f)?.id ?? null);
+    setSelId(id);
+    sincronizarUrl(f, id);
+  };
+
+  const elegirFuncion = (id: number) => {
+    setSelId(id);
+    sincronizarUrl(fecha, id);
   };
 
   return (
@@ -79,7 +101,7 @@ export function PeliculaClient({
                       {funciones.map((fn) => (
                         <button
                           key={fn.id}
-                          onClick={() => setSelId(fn.id)}
+                          onClick={() => elegirFuncion(fn.id)}
                           className={`min-w-[130px] rounded-lg border px-4 py-3 text-center transition-all ${
                             selId === fn.id
                               ? "border-primary bg-primary text-primary-foreground"
