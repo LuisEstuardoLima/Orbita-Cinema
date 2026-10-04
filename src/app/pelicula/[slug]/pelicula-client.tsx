@@ -132,7 +132,7 @@ export function PeliculaClient({
               <Dato etiqueta="Clasificación" valor={pelicula.clasificacion} />
               <Dato etiqueta="Género" valor={pelicula.genero} />
               <Dato etiqueta="Director" valor={pelicula.director} />
-              <Dato etiqueta="Actor principal" valor={pelicula.actor} />
+              <Dato etiqueta="Actores" valor={pelicula.actor} />
               <Dato etiqueta="Estudio" valor={pelicula.estudio} />
             </dl>
           </div>

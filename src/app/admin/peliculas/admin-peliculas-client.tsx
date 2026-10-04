@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type ChangeEvent, type FormEvent } from "react";
 import { CircleUserRound, Plus, Search, Trash2, Upload } from "lucide-react";
 import { Modal } from "@/components/cinema/Modal";
 import { PosterImage } from "@/components/cinema/PosterImage";
@@ -15,6 +15,7 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
   const [aBorrar, setABorrar] = useState<PeliculaRow | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [archivo, setArchivo] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [pendiente, startTransition] = useTransition();
@@ -27,6 +28,15 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
     setCreando(false);
     setArchivo("");
     setError(null);
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(null);
+  };
+
+  const onElegirPoster = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    setArchivo(f?.name ?? "");
+    if (preview) URL.revokeObjectURL(preview);
+    setPreview(f ? URL.createObjectURL(f) : null);
   };
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -183,43 +193,78 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
           </>
         }
       >
-        <form id="form-pelicula" onSubmit={onSubmit} className="grid gap-5 md:grid-cols-2">
+        <form
+          id="form-pelicula"
+          onSubmit={onSubmit}
+          className="grid gap-6 md:grid-cols-[180px_1fr]"
+        >
+          {/* Columna del póster: alta y estrecha, para que no descuadre los campos */}
+          <div className="space-y-3">
+            <label className="label">Póster</label>
+            <label className="btn-light w-full cursor-pointer">
+              <Upload className="h-4 w-4" /> Elegir archivo
+              <input
+                type="file"
+                name="poster"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                onChange={onElegirPoster}
+              />
+            </label>
+            {preview ? (
+              <PosterImage
+                src={preview}
+                alt="Vista previa del póster"
+                className="aspect-[2/3] w-full rounded-md border border-border object-cover"
+              />
+            ) : (
+              <div className="flex aspect-[2/3] w-full items-center justify-center rounded-md border border-dashed border-border text-xs text-muted-foreground">
+                Sin imagen
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              JPG, PNG o WEBP · máximo 4 MB
+              {archivo && <span className="mt-1 block truncate">{archivo}</span>}
+            </p>
+          </div>
+
+          {/* Columna de datos: una sola columna para evitar huecos */}
           <div className="space-y-4">
             <div>
               <label className="label" htmlFor="titulo">Título</label>
               <input id="titulo" name="titulo" className="field" required maxLength={150} />
             </div>
-            <div>
-              <label className="label" htmlFor="clasificacion">Clasificación</label>
-              <select id="clasificacion" name="clasificacion" className="field" defaultValue="A">
-                {CLASIFICACIONES.map((r) => (
-                  <option key={r}>{r}</option>
-                ))}
-              </select>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="clasificacion">Clasificación</label>
+                <select id="clasificacion" name="clasificacion" className="field" defaultValue="A">
+                  {CLASIFICACIONES.map((r) => (
+                    <option key={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label" htmlFor="genero">Género</label>
+                <select id="genero" name="genero" className="field" defaultValue={GENEROS[0]}>
+                  {GENEROS.map((g) => (
+                    <option key={g}>{g}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="label" htmlFor="genero">Género</label>
-              <select id="genero" name="genero" className="field" defaultValue={GENEROS[0]}>
-                {GENEROS.map((g) => (
-                  <option key={g}>{g}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="label">Poster</label>
-              <label className="btn-light w-full cursor-pointer">
-                <Upload className="h-4 w-4" /> {archivo || "Elegir un archivo"}
-                <input
-                  type="file"
-                  name="poster"
-                  accept="image/png,image/jpeg,image/webp"
-                  className="sr-only"
-                  onChange={(e) => setArchivo(e.target.files?.[0]?.name ?? "")}
-                />
-              </label>
-              <p className="mt-1 text-xs text-muted-foreground">JPG, PNG o WEBP · máximo 4 MB</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <label className="label" htmlFor="director">Director</label>
+                <input id="director" name="director" className="field" maxLength={100} />
+              </div>
+              <div>
+                <label className="label" htmlFor="actores">Actores</label>
+                <input id="actores" name="actores" className="field" maxLength={100} />
+              </div>
+              <div>
+                <label className="label" htmlFor="estudio">Estudio</label>
+                <input id="estudio" name="estudio" className="field" maxLength={100} />
+              </div>
             </div>
             <div>
               <label className="label" htmlFor="sinopsis">Descripción</label>
@@ -233,26 +278,12 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                 placeholder="Ingresar descripción..."
               />
             </div>
+            {error && (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            )}
           </div>
-          <div className="grid gap-4 md:col-span-2 md:grid-cols-3">
-            <div>
-              <label className="label" htmlFor="director">Director</label>
-              <input id="director" name="director" className="field" maxLength={100} />
-            </div>
-            <div>
-              <label className="label" htmlFor="actores">Actor principal</label>
-              <input id="actores" name="actores" className="field" maxLength={100} />
-            </div>
-            <div>
-              <label className="label" htmlFor="estudio">Estudio</label>
-              <input id="estudio" name="estudio" className="field" maxLength={100} />
-            </div>
-          </div>
-          {error && (
-            <p role="alert" className="text-sm text-destructive md:col-span-2">
-              {error}
-            </p>
-          )}
         </form>
       </Modal>
 

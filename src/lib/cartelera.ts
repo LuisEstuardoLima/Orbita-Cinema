@@ -60,6 +60,41 @@ export const FILTROS_VACIOS: Filtros = {
   clasificaciones: [],
 };
 
+const unValor = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+
+/**
+ * Lee los filtros desde la query string. Sin `fecha` se usa hoy, que es la cartelera del día.
+ * Un valor desconocido se ignora, para que un link editado a mano no rompa la pantalla.
+ */
+export function filtrosDesdeParams(
+  sp: Record<string, string | string[] | undefined>,
+  hoy: string,
+): Filtros {
+  const idioma = unValor(sp.idioma);
+  return {
+    query: unValor(sp.q),
+    fecha: unValor(sp.fecha) || hoy,
+    desde: unValor(sp.desde),
+    hasta: unValor(sp.hasta),
+    idioma: (IDIOMAS_FILTRO as readonly string[]).includes(idioma) ? (idioma as IdiomaFiltro) : "",
+    clasificaciones: unValor(sp.clasif)
+      .split(",")
+      .filter((r) => (CLASIFICACIONES as readonly string[]).includes(r)),
+  };
+}
+
+/** Arma la query string de los filtros. Lo vacío se omite y la fecha de hoy no viaja en la URL. */
+export function filtrosToParams(f: Filtros, hoy: string): URLSearchParams {
+  const q = new URLSearchParams();
+  if (f.query.trim()) q.set("q", f.query.trim());
+  if (f.fecha && f.fecha !== hoy) q.set("fecha", f.fecha);
+  if (f.desde) q.set("desde", f.desde);
+  if (f.hasta) q.set("hasta", f.hasta);
+  if (f.idioma) q.set("idioma", f.idioma);
+  if (f.clasificaciones.length) q.set("clasif", f.clasificaciones.join(","));
+  return q;
+}
+
 export const HORAS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`);
 
 const normalizar = (s: string) =>
@@ -91,7 +126,9 @@ export function peliculasVisibles(
   f: Filtros,
 ): { pelicula: PeliculaVM; funciones: FuncionVM[] }[] {
   const q = normalizar(f.query.trim());
-  const filtraFunciones = Boolean(f.fecha || f.desde || f.hasta || f.idioma);
+  // Con fecha, desde/hasta o idioma, la película se muestra aunque no tenga funciones para ese día:
+  // la tarjeta avisa cuándo es su próxima función. Solo la búsqueda y la clasificación ocultan.
+  const filtraFunciones = Boolean(f.desde || f.hasta || f.idioma);
   return peliculas
     .map((pelicula) => ({ pelicula, funciones: funcionesFiltradas(pelicula, f) }))
     .filter(({ pelicula, funciones }) => {
