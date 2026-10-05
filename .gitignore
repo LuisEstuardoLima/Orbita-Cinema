@@ -27,3 +27,6 @@ npm-debug.log*
 .DS_Store
 *.tsbuildinfo
 CLAUDE.md
+
+# guía personal de estudio (no es parte del proyecto)
+GUIA-DEL-PROYECTO.md
