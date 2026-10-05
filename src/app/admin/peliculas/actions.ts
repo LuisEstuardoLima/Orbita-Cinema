@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertAdmin } from "@/lib/auth/guard";
 import { slugify } from "@/lib/slug";
-import { CLASIFICACIONES, GENEROS } from "@/lib/cartelera";
+import { CLASIFICACIONES, GENEROS, normalizar } from "@/lib/cartelera";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -58,6 +58,24 @@ export async function crearPelicula(formData: FormData): Promise<ActionResult> {
 
   const admin = createAdminClient();
 
+  // Una película activa con el mismo título no se puede volver a registrar: se avisa aquí
+  // para que la activen o la modifiquen en lugar de dejar dos cartas con el mismo nombre.
+  const { data: homonimas, error: errDup } = await admin
+    .from("pelicula")
+    .select("id, titulo")
+    .eq("activa", true)
+    .ilike("titulo", d.titulo);
+  if (errDup) return { ok: false, error: `No se pudo validar el título: ${errDup.message}` };
+  const repetida = (homonimas ?? []).find(
+    (p: { titulo: string }) => normalizar(p.titulo) === normalizar(d.titulo),
+  );
+  if (repetida) {
+    return {
+      ok: false,
+      error: `Ya existe "${repetida.titulo}". Actívala o modifícala en lugar de crear otra.`,
+    };
+  }
+
   // slug único: base, base-2, base-3...
   const base = slugify(d.titulo) || "pelicula";
   const { data: existentes, error: errSlug } = await admin
@@ -108,10 +126,20 @@ export async function crearPelicula(formData: FormData): Promise<ActionResult> {
 }
 
 /**
- * SCRUM-106: "eliminar" = dar de baja (activa = false), como pide RF-056.
- * Un DELETE real rompería las funciones y, más adelante, las reservas que referencian la película.
+ * SCRUM-106: activa o desactiva una película.
+ *
+ * "Dar de baja" es una baja lógica (`activa = false`), nunca un DELETE: las funciones, y más
+ * adelante las reservas y los boletos, referencian a la película y un borrado real rompería
+ * esos datos. Un boleto ya vendido tiene que seguir siendo válido aunque la película se
+ * desactive después; la baja solo impide vender nuevas entradas.
+ *
+ * El listado del panel trae también las inactivas, así que esta misma acción las revierte:
+ * una baja nunca deja una película inaccesible desde la aplicación.
  */
-export async function eliminarPelicula(id: number): Promise<ActionResult> {
+export async function cambiarEstadoPelicula(
+  id: number,
+  activa: boolean,
+): Promise<ActionResult> {
   const denied = await assertAdmin();
   if (denied) return { ok: false, error: denied };
   if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Película inválida." };
@@ -119,11 +147,12 @@ export async function eliminarPelicula(id: number): Promise<ActionResult> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("pelicula")
-    .update({ activa: false })
+    .update({ activa })
     .eq("id", id)
-    .select("id");
-  if (error) return { ok: false, error: `No se pudo dar de baja: ${error.message}` };
-  if (!data || data.length === 0) return { ok: false, error: "La película no existe." };
+    .select("id, titulo, activa")
+    .maybeSingle();
+  if (error) return { ok: false, error: `No se pudo cambiar el estado: ${error.message}` };
+  if (!data) return { ok: false, error: "La película no existe." };
 
   revalidatePath("/");
   revalidatePath("/admin/peliculas");

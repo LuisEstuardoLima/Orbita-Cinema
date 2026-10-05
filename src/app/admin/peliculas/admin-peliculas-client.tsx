@@ -1,23 +1,24 @@
 "use client";
 
 import { useState, useTransition, type ChangeEvent, type FormEvent } from "react";
-import { CircleUserRound, Plus, Search, Trash2, Upload } from "lucide-react";
+import { CircleUserRound, Plus, Search, Upload } from "lucide-react";
 import { Modal } from "@/components/cinema/Modal";
 import { PosterImage } from "@/components/cinema/PosterImage";
+import { Switch } from "@/components/ui/switch";
 import { CLASIFICACIONES, GENEROS } from "@/lib/cartelera";
 import type { PeliculaRow } from "@/lib/db-types";
-import { crearPelicula, eliminarPelicula } from "./actions";
+import { cambiarEstadoPelicula, crearPelicula } from "./actions";
 
 const NAV = ["Dashboard", "Películas", "Funciones", "Salas & asientos", "Reportes", "Usuarios"];
 
 export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }) {
   const [creando, setCreando] = useState(false);
-  const [aBorrar, setABorrar] = useState<PeliculaRow | null>(null);
+  const [aDesactivar, setADesactivar] = useState<PeliculaRow | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [archivo, setArchivo] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [mensaje, setMensaje] = useState<{ texto: string; ok: boolean } | null>(null);
   const [pendiente, startTransition] = useTransition();
 
   const filtradas = peliculas.filter((p) =>
@@ -47,20 +48,37 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
       const res = await crearPelicula(datos);
       if (res.ok) {
         cerrarFormulario();
-        setAviso("Película registrada correctamente.");
+        setMensaje({ texto: "Película registrada correctamente.", ok: true });
       } else {
         setError(res.error);
       }
     });
   };
 
-  const confirmarBaja = () => {
-    if (!aBorrar) return;
-    const { id, titulo } = aBorrar;
+  /** Activar es directo y sin confirmar: la película ya está a la vista en el panel. */
+  const activar = (p: PeliculaRow) => {
+    setMensaje(null);
     startTransition(async () => {
-      const res = await eliminarPelicula(id);
-      setABorrar(null);
-      setAviso(res.ok ? `"${titulo}" se dio de baja de la cartelera.` : res.error);
+      const res = await cambiarEstadoPelicula(p.id, true);
+      setMensaje(
+        res.ok
+          ? { texto: `"${p.titulo}" vuelve a mostrarse en la cartelera.`, ok: true }
+          : { texto: res.error, ok: false },
+      );
+    });
+  };
+
+  const confirmarDesactivacion = () => {
+    if (!aDesactivar) return;
+    const { id, titulo } = aDesactivar;
+    setADesactivar(null);
+    startTransition(async () => {
+      const res = await cambiarEstadoPelicula(id, false);
+      setMensaje(
+        res.ok
+          ? { texto: `"${titulo}" dejó de mostrarse en la cartelera.`, ok: true }
+          : { texto: res.error, ok: false },
+      );
     });
   };
 
@@ -109,12 +127,16 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
             </button>
           </div>
 
-          {aviso && (
+          {mensaje && (
             <p
               role="status"
-              className="mx-6 mb-4 rounded-md border border-border bg-surface-2 px-4 py-2 text-sm text-secondary"
+              className={`mx-6 mb-4 rounded-md border px-4 py-2 text-sm ${
+                mensaje.ok
+                  ? "border-border bg-surface-2 text-secondary"
+                  : "border-destructive/50 bg-destructive/10 text-destructive"
+              }`}
             >
-              {aviso}
+              {mensaje.texto}
             </p>
           )}
 
@@ -127,14 +149,16 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                   <th className="px-4 py-3">Título</th>
                   <th className="px-4 py-3">Clasificación</th>
                   <th className="px-4 py-3">Género</th>
-                  <th className="px-4 py-3 text-right">Acciones</th>
+                  <th className="px-4 py-3">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {filtradas.map((m) => (
                   <tr
                     key={m.id}
-                    className="border-b border-border transition-colors hover:bg-surface-2/60"
+                    className={`border-b border-border transition-colors hover:bg-surface-2/60 ${
+                      m.activa ? "" : "opacity-60"
+                    }`}
                   >
                     <td className="px-4 py-3 text-muted-foreground">
                       {String(m.id).padStart(2, "0")}
@@ -153,16 +177,22 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{m.genero ?? "—"}</td>
+                    {/* Editar es del Sprint 7 (SCRUM-67). El interruptor sustituye al botón
+                        de eliminar: la baja lógica siempre es reversible desde aquí. */}
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        {/* Editar es del Sprint 7 (SCRUM-67) */}
-                        <button
-                          onClick={() => setABorrar(m)}
-                          aria-label={`Dar de baja ${m.titulo}`}
-                          className="rounded-md border border-border p-2 text-secondary transition-colors hover:border-destructive hover:text-destructive"
+                      <div className="flex items-center gap-2.5">
+                        <Switch
+                          checked={m.activa}
+                          disabled={pendiente}
+                          onCheckedChange={(v) => (v ? activar(m) : setADesactivar(m))}
+                          id={`activa-${m.id}`}
+                        />
+                        <label
+                          htmlFor={`activa-${m.id}`}
+                          className="cursor-pointer text-xs font-medium text-muted-foreground"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                          {m.activa ? "Activa" : "Inactiva"}
+                        </label>
                       </div>
                     </td>
                   </tr>
@@ -287,25 +317,27 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
         </form>
       </Modal>
 
-      {/* Dar de baja (SCRUM-106) */}
+      {/* Desactivar (SCRUM-106). Pide confirmación porque saca la película de la cartelera;
+          activar no la pide, porque es la acción inversa y el mismo interruptor la hace. */}
       <Modal
-        open={!!aBorrar}
-        title="Dar de baja película"
-        onClose={() => setABorrar(null)}
+        open={!!aDesactivar}
+        title="Desactivar película"
+        onClose={() => setADesactivar(null)}
         footer={
           <>
-            <button className="btn-ghost" onClick={() => setABorrar(null)} disabled={pendiente}>
+            <button className="btn-ghost" onClick={() => setADesactivar(null)} disabled={pendiente}>
               Cancelar
             </button>
-            <button className="btn-primary" onClick={confirmarBaja} disabled={pendiente}>
-              {pendiente ? "Procesando..." : "Dar de baja"}
+            <button className="btn-primary" onClick={confirmarDesactivacion} disabled={pendiente}>
+              {pendiente ? "Procesando..." : "Desactivar"}
             </button>
           </>
         }
       >
         <p className="text-sm text-muted-foreground">
-          ¿Seguro que quieres dar de baja <span className="font-semibold text-foreground">{aBorrar?.titulo}</span>?
-          Dejará de mostrarse en la cartelera. Esta acción no borra sus datos.
+          Al desactivar <span className="font-semibold text-foreground">{aDesactivar?.titulo}</span>{" "}
+          dejará de mostrarse en la cartelera. Seguirá visible en este panel y podrás volver a
+          activarla cuando quieras. Esta acción no borra sus datos.
         </p>
       </Modal>
     </div>

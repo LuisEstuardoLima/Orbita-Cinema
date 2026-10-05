@@ -97,7 +97,8 @@ export function filtrosToParams(f: Filtros, hoy: string): URLSearchParams {
 
 export const HORAS = Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}:00`);
 
-const normalizar = (s: string) =>
+/** Quita acentos y pasa a minúsculas, para comparar títulos sin depender de mayúsculas. */
+export const normalizar = (s: string) =>
   s
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

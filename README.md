@@ -20,7 +20,7 @@ Next.js se sigue ejecutando con Node (v20+); Bun se usa como gestor de paquetes 
 2. Completar `.env.local` (incluye `SUPABASE_SERVICE_ROLE_KEY`, solo servidor).
 3. `/` lee `pelicula`, `funcion` y `sala` de Supabase; filtros por fecha, rango horario, idioma y clasificación.
 4. `/pelicula/[slug]` muestra las funciones por fecha y sala.
-5. `/admin/peliculas` registra (con póster), lista y da de baja películas (`activa = false`) mediante Server Actions.
+5. `/admin/peliculas` registra (con póster), lista y activa/desactiva películas mediante Server Actions.
 
 > Hasta el Sprint 2 (login) el panel admin no tiene autenticación: no lo desplieguen públicamente con `AUTH_GUARD=off`.
 
@@ -76,3 +76,21 @@ Se eliminó lo específico de Lovable/Vite/Nitro (`server.ts`, `start.ts`, `rout
 ## Pendiente (según la documentación)
 
 `entradas`, `asientos` y `pago` siguen con datos estáticos de `cinema-data.ts` (sprints 3 y 4), así que al pulsar "Continuar" desde una película de la base de datos esas pantallas todavía muestran el encabezado de prueba. Faltan además: tablas `asiento`, `reserva`, `detalle_reserva`, `pago` y `boleto`, bloqueo temporal de 5 min, boleto PDF + QR, correo de confirmación, login/roles y los paneles de Colaborador y Administrador restantes.
+
+## Decisiones sobre la baja de películas (leer antes de Sprint 3/4 y 7)
+
+Estas decisiones ya están tomadas. No volver a abrirlas sin revisarlas.
+
+**No existe borrado real de una película.** El panel solo tiene un interruptor que activa y desactiva. Quien eliminaba con el 🗑 idéntico a desactivar y además ocultaba la película del panel, dejándola irrecuperable desde la aplicación (había que volver a crearla, y quedaba el duplicado con el slug `-2`).
+
+- La baja es lógica: `pelicula.activa = false`. La fila nunca se borra.
+- `listPeliculasAdmin()` trae **también** las inactivas, ordenando las activas primero. Si algún día se vuelve a filtrar por `activa = true`, se pierde esta capacidad y vuelve el problema.
+- Editar (SCRUM-67, Sprint 7) tiene que funcionar **igual sobre una película activa o inactiva**; no debe exigir reactivarla antes.
+
+**Al desactivar no se tocan las reservas ni los boletos ya emitidos.** Un boleto vendido es una promesa: la baja solo impide vender *nuevas* entradas, nunca invalida las anteriores.
+
+**Cuando exista el flujo de compra hay que validar `activa` al escribir, no solo al leer.** Ocultar la película de la cartelera no basta: alguien puede tener la pantalla de pago abierta cuando el admin la desactiva. Al crear la reserva y al confirmar el pago hay que releer `pelicula.activa` **y** `funcion.activa` contra la base y rechazar con un mensaje claro si ya no está disponible. Las funciones no se desactivan en cascada al dar de baja una película (el módulo de funciones aún no existe), por eso hay que revisar las dos.
+
+**Registrar una película con el título de una que ya está activa se rechaza** (`crearPelicula`). Una película dada de baja sí admite una nueva con el mismo título, porque el objetivo es activar la existente.
+
+**Editar el título y el slug.** El `slug` se genera solo al crear y es la URL pública (`/pelicula/[slug]`). Si el Sprint 7 permite cambiar el título, hay que decidir si el `slug` se recalcula: hacerlo sin más rompe los enlaces ya compartidos.

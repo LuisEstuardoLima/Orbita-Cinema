@@ -55,6 +55,10 @@ drop policy if exists "lectura publica funcion" on funcion;
 create policy "lectura publica funcion" on funcion for select to anon, authenticated using (activa = true);
 
 -- 5) Bucket público para los pósters que sube el administrador ----------
+--    El nombre debe ser en minúsculas (`posters`): es el que usa el panel admin.
+--    Si existió un bucket `Posters` con mayúscula, migra sus archivos y actualiza
+--    `pelicula.poster_url` (de '/public/Posters/' a '/public/posters/') ANTES de
+--    eliminar el bucket viejo, o las imágenes existentes se van a romper.
 insert into storage.buckets (id, name, public)
 values ('posters', 'posters', true)
 on conflict (id) do nothing;

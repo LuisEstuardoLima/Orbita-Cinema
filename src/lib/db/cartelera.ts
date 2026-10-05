@@ -122,13 +122,22 @@ export const getPeliculaBySlug = cache(async (slug: string): Promise<PeliculaVM 
   return aPeliculaVM(pelicula, funciones);
 });
 
-/** SCRUM-104: listado del panel admin (service role: no depende de las políticas RLS). */
+/**
+ * SCRUM-104: listado del panel admin (service role: no depende de las políticas RLS).
+ *
+ * Trae también las películas dadas de baja (`activa = false`) a propósito: el panel tiene que
+ * poder verlas para reactivarlas. Ocultarlas hacía que una baja fuera irreversible desde la
+ * aplicación (por eso había que volver a crear la película).
+ *
+ * Con muchas películas conviene que las activas agrupen arriba: en Postgres `false < true`,
+ * así que ordenar `activa` de forma descendente deja las activas primero.
+ */
 export async function listPeliculasAdmin(): Promise<PeliculaRow[]> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("pelicula")
     .select("*")
-    .eq("activa", true)
+    .order("activa", { ascending: false })
     .order("id");
   if (error) throw new Error(`pelicula: ${error.message}`);
   return data as PeliculaRow[];
