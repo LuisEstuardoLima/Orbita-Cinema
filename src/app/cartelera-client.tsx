@@ -1,5 +1,22 @@
 "use client";
 
+/**
+ * Cartelera — la parte que corre en el NAVEGADOR ("use client").
+ *
+ * Este archivo no habla con la base de datos: solo recibe los datos que ya trajo `page.tsx`
+ * y maneja la interacción (filtros, búsqueda, elegir hora).
+ *
+ * La idea central del filtrado: hay dos listas de filtros.
+ * - `draft`: lo que el usuario está escribiendo/eligiendo (puede no estar aplicado todavía).
+ * - `applied`: lo que realmente está filtrando la cartelera en este momento.
+ *
+ * Los modales (fecha, horario, idioma) confirman con OK y mueven las dos listas a la vez
+ * (`aplicar`). La búsqueda y la clasificación son incrementales y usan el botón "Filtrar".
+ *
+ * La URL es la fuente de verdad: `sincronizarUrl` escribe los filtros aplicados en la barra de
+ * direcciones con `replace` (no `push`, para no llenar el historial del botón "atrás"). Así, si
+ * el usuario recarga, comparte el link o vuelve de una película, los filtros se conservan.
+ */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";

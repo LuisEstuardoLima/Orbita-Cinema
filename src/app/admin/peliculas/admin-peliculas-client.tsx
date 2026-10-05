@@ -1,5 +1,19 @@
 "use client";
 
+/**
+ * Panel de administración de películas — la parte que corre en el NAVEGADOR ("use client").
+ *
+ * Recibe la lista de películas (todas: activas y dadas de baja) y administra la pantalla.
+ * Cuando necesita guardar algo, llama a las Server Actions de `./actions`; esas corren en el
+ * servidor con la service role, que es la única forma de escribir en la base.
+ *
+ * Decisión de diseño del Sprint 1 (SCRUM-106): no hay botón de eliminar. Solo un interruptor que
+ * activa y desactiva (`activa`). Desactivar es una baja lógica, nunca un DELETE, y el panel
+ * muestra las inactivas para que la acción siempre sea reversible. Ver la nota completa en
+ * `actions.ts` y en el README.
+ *
+ * `useTransition` + `pendiente` sirven para deshabilitar la interfaz mientras el servidor responde.
+ */
 import { useState, useTransition, type ChangeEvent, type FormEvent } from "react";
 import { CircleUserRound, Plus, Search, Upload } from "lucide-react";
 import { Modal } from "@/components/cinema/Modal";

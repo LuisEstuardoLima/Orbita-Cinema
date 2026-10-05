@@ -1,5 +1,22 @@
 "use client";
 
+/**
+ * Detalle de una película — la parte que corre en el NAVEGADOR ("use client").
+ *
+ * Recibe la película ya consultada desde `page.tsx` y maneja la interacción: elegir día
+ * (chips de fecha) y elegir función (los horarios, agrupados por sala).
+ *
+ * Estado:
+ * - `fecha`: qué día se está viendo.
+ * - `selId`: qué función está elegida. De ahí sale el botón "Continuar", que solo se habilita
+ *   si hay una función seleccionada.
+ *
+ * Cuando la URL trae una función (`funcionInicial`, venís desde la cartelera con una hora
+ * elegida), esa gana: el día se deduce de la función, no al revés.
+ *
+ * Cada cambio escribe en la URL con `window.history.replaceState` para que recargar o compartir
+ * el link no pierda la selección.
+ */
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
