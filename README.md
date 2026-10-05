@@ -94,3 +94,48 @@ Estas decisiones ya están tomadas. No volver a abrirlas sin revisarlas.
 **Registrar una película con el título de una que ya está activa se rechaza** (`crearPelicula`). Una película dada de baja sí admite una nueva con el mismo título, porque el objetivo es activar la existente.
 
 **Editar el título y el slug.** El `slug` se genera solo al crear y es la URL pública (`/pelicula/[slug]`). Si el Sprint 7 permite cambiar el título, hay que decidir si el `slug` se recalcula: hacerlo sin más rompe los enlaces ya compartidos.
+
+## Optimización (pendiente, priorizado)
+
+Puntos detectados revisando el proyecto. Están anotados para retomarlos, **no son urgent**: hoy `pelicula` tiene 8 filas, `funcion` 88 y `sala` 6, así que nada de esto se nota todavía. Se anotan porque el coste crece con el tamaño de los datos.
+
+### 1. Los pósters no pasan por el optimizador de Next.js — el más visible
+
+`src/components/cinema/PosterImage.tsx` termina con:
+
+```tsx
+unoptimized={!src.startsWith("/")}
+```
+
+Los pósters de Supabase son URLs remotas (`https://…supabase.co/...`), no empiezan con `/`, así que **todas caen en `unoptimized = true`** y el navegador descarga el JPG original sin redimensionar. En la cartelera son 6 pósteres de ~500 KB cada uno: alrededor de **3 MB por visita** para mostrar miniaturas.
+
+**Por qué está así:** el comentario del código explica que es para no registrar el dominio en `next.config.ts`. Es un trade-off legítimo.
+
+**Cómo se resolvería:** registrar el dominio de Supabase en `images.remotePatterns` de `next.config.ts` y quitar el `unoptimized`, de modo que los posters se sirvan redimensionados y en WebP. Antes de hacerlo hay que **medir el tamaño real de los JPG** y confirmar que el optimizador de Next (que en Vercel tiene límites) da mejor resultado que la URL directa.
+
+### 2. Falta el índice compuesto de `funcion` — el más escalable
+
+`getCartelera()` (la ruta más golpeada del sitio) consulta:
+
+```ts
+supabase.from("funcion").select("*")
+  .eq("activa", true).gte("fecha", ahora.fecha).order("fecha").order("hora");
+```
+
+Sin un índice que cubra ese filtro, Postgres hace *seq scan* (recorre la tabla entera) en **cada visita**. Con las ~90 funciones actuales es instantáneo; con 50 películas × 30 funciones × 7 días serían unas 10 000 filas.
+
+**Ya está resuelto en `supabase/sprint1.sql` (punto 6):** dos índices compuestos, uno para la cartelera y otro para el detalle de película. Son idempotentes, se aplican corriendo el script.
+
+> Cuando se defina el módulo de funciones, **revisar si el índice sigue siendo el adecuado**: si el filtrado real termina siendo por `id_sala` u otro criterio, puede hacer falta otro o cambiar el orden de las columnas.
+
+### 3. `select("*")` innecesario
+
+Las consultas de `cartelera.ts` piden todas las columnas, pero el código solo usa algunas. Nombrarlas explícitamente reduce el peso de los datos que cruzan la red en cada request y mejora el tipado si más adelante se generan los tipos con `supabase gen types`. **No es urgente**, es buena práctica.
+
+### 4. Cache del detalle de película
+
+`getCartelera()` es `force-dynamic`, lo cual es correcto porque depende de la fecha y hora actuales. Pero `getPeliculaBySlug()` solo usa `cache()` de React, que **deduplica dentro de un mismo render, no entre peticiones**: recargar la página vuelve a consultar la base.
+
+Cuando se conecte el flujo de compra el usuario va a recargar el detalle varias veces seguidas. Ahí conviene revisar un `revalidate` con *tags* de Next, o `unstable_cache` con una invalidación explícita desde las Server Actions.
+
+**Dejar para cuando exista el flujo de compra**, para no cachear de más una pantalla que aún cambia.

@@ -62,3 +62,18 @@ create policy "lectura publica funcion" on funcion for select to anon, authentic
 insert into storage.buckets (id, name, public)
 values ('posters', 'posters', true)
 on conflict (id) do nothing;
+
+-- 6) Índices de las consultas más repetidas del sitio ------------------------
+--    `cartelera.ts` es la ruta más golpeada: filtra por activa + rango de fecha y
+--    ordena por fecha/hora. Sin estos índices Postgres hace seq scan (lee la tabla
+--    entera) en cada visita. Hoy con ~90 funciones no se nota; con 50 películas ×
+--    30 funciones × 7 días son ~10 000 filas y sí.
+--    El orden de las columnas importa: primero lo más selectivo que se filtra
+--    siempre (activa), después el rango (fecha), y al final las de ordenamiento.
+create index if not exists funcion_activa_fecha_hora_idx
+  on funcion (activa, fecha, hora);
+
+-- El detalle (`getPeliculaBySlug`) busca por slug + activa y después por
+-- id_pelicula + activa + fecha.
+create index if not exists funcion_pelicula_activa_fecha_idx
+  on funcion (id_pelicula, activa, fecha);
