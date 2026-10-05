@@ -59,6 +59,16 @@ export function CarteleraClient({
   const [tmpIdioma, setTmpIdioma] = useState<IdiomaFiltro>("");
   const [slotError, setSlotError] = useState("");
 
+  // SCRUM-15: hora elegida en la tarjeta. Viaja en la URL al detalle para que la función
+  // venga preseleccionada, sin tener que buscarla otra vez al entrar.
+  // Es una sola selección a la vez: al elegir otra hora, la anterior se suelta. Guardar una por
+  // película dejaba varias tarjetas marcadas y todos los "Ver más..." con hora, sin saber
+  // cuál es la que realmente va a viajar.
+  const [elegida, setElegida] = useState<number | null>(null);
+
+  const alternarFuncion = (idFuncion: number) =>
+    setElegida((prev) => (prev === idFuncion ? null : idFuncion));
+
   // Si la URL cambia desde afuera (logo, "Cartelera" del header, botón "atrás" del navegador), el
   // servidor manda otros filtros iniciales y hay que adoptarlos: useState solo corre en el primer
   // render. Se comparan las query strings para no pisar lo que el usuario escribe en el panel.
@@ -88,6 +98,9 @@ export function CarteleraClient({
   // (draft) y lo que realmente filtra la cartelera (applied), para no pedir un segundo clic.
   const aplicar = (parche: Partial<Filtros>) => {
     const siguiente = { ...draft, ...parche };
+    // Cambiar de fecha deja obsoletas las horas elegidas: se limpian para no llevar al
+    // detalle una función de otro día.
+    if (parche.fecha && parche.fecha !== applied.fecha) setElegida(null);
     setDraft(siguiente);
     setApplied(siguiente);
     sincronizarUrl(siguiente);
@@ -232,6 +245,14 @@ export function CarteleraClient({
               // completa de la película, porque esa lista no está recortada a un solo día.
               const fechaVista = applied.fecha ?? hoy;
               const funciones = todas.filter((f) => f.fecha === fechaVista);
+              const selId = elegida;
+              const fnSel = elegida
+                ? m.funciones.find((f) => f.id === elegida)
+                : undefined;
+              // Si viene una hora elegida, el link la lleva al detalle (fecha + id de función).
+              const detalle = fnSel
+                ? `/pelicula/${m.slug}?fecha=${fnSel.fecha}&funcion=${fnSel.id}`
+                : `/pelicula/${m.slug}?fecha=${fechaVista}`;
               const proxima = m.funciones.find((f) => f.fecha >= fechaVista);
               const sinFunciones =
                 fechaVista === hoy
@@ -265,10 +286,19 @@ export function CarteleraClient({
                             : sinFunciones}
                         </span>
                       )}
+                      {/* Antes eran <span>: parecían botones (la clase .chip trae cursor-pointer
+                          y hover) pero no hacían nada. Ahora eligen la hora (SCRUM-15). */}
                       {funciones.slice(0, MAX_CHIPS).map((f) => (
-                        <span key={f.id} className="chip">
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => alternarFuncion(f.id)}
+                          aria-pressed={selId === f.id}
+                          aria-label={`Elegir función de las ${f.hora} en ${f.sala.nombre}`}
+                          className={selId === f.id ? "chip chip-active" : "chip"}
+                        >
                           {f.hora}
-                        </span>
+                        </button>
                       ))}
                       {funciones.length > MAX_CHIPS && (
                         <span className="chip">+{funciones.length - MAX_CHIPS}</span>
@@ -276,10 +306,10 @@ export function CarteleraClient({
                     </div>
                     <div className="mt-4 flex items-center justify-between">
                       <Link
-                        href={`/pelicula/${m.slug}?fecha=${applied.fecha ?? hoy}`}
+                        href={detalle}
                         className="btn-primary px-4 py-2 text-xs normal-case tracking-normal"
                       >
-                        Ver más...
+                        {fnSel ? `Ver más... (${fnSel.hora})` : "Ver más..."}
                       </Link>
                       <span className="rounded-md border border-border bg-surface-2 px-2.5 py-1 text-xs font-bold text-secondary">
                         {m.clasificacion}
