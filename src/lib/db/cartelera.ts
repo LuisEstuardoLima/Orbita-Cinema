@@ -129,6 +129,9 @@ export const getPeliculaBySlug = cache(async (slug: string): Promise<PeliculaVM 
  * poder verlas para reactivarlas. Ocultarlas hacía que una baja fuera irreversible desde la
  * aplicación (por eso había que volver a crear la película).
  *
+ * Las marcadas como `eliminada = true` (botón Eliminar) sí se excluyen: eso es exactamente lo
+ * que el botón promete, sacarla del listado del panel sin tocar el resto de sus datos.
+ *
  * Con muchas películas conviene que las activas agrupen arriba: en Postgres `false < true`,
  * así que ordenar `activa` de forma descendente deja las activas primero.
  */
@@ -137,6 +140,7 @@ export async function listPeliculasAdmin(): Promise<PeliculaRow[]> {
   const { data, error } = await admin
     .from("pelicula")
     .select("*")
+    .eq("eliminada", false)
     .order("activa", { ascending: false })
     .order("id");
   if (error) throw new Error(`pelicula: ${error.message}`);

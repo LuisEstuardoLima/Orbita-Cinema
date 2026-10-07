@@ -116,45 +116,6 @@ export const MOVIES: Movie[] = [
 export const getMovie = (slug: string): Movie =>
   (MOVIES.find((m) => m.slug === slug) ?? MOVIES[0]) as Movie;
 
-export const HALLS = [
-  {
-    name: "Sala VIP 2D",
-    times: [
-      { time: "12:00", format: "Doblada Español" },
-      { time: "15:00", format: "Subtitulada Inglés" },
-      { time: "18:00", format: "Subtitulada Inglés" },
-    ],
-  },
-  {
-    name: "Sala regular 2D",
-    times: [
-      { time: "12:00", format: "Doblada Español" },
-      { time: "15:00", format: "Subtitulada Inglés" },
-      { time: "18:00", format: "Subtitulada Inglés" },
-    ],
-  },
-  {
-    name: "Sala regular 3D",
-    times: [
-      { time: "12:00", format: "Doblada Español" },
-      { time: "15:00", format: "Subtitulada Inglés" },
-      { time: "18:00", format: "Subtitulada Inglés" },
-    ],
-  },
-];
-
-const HALL_FORMATS = ["Doblada Español", "Subtitulada Inglés", "Subtitulada Inglés"];
-
-/** Salas y horarios de una película, usando sus propios horarios estáticos. */
-export const getHalls = (movie: Movie) =>
-  HALLS.map((hall) => ({
-    name: hall.name,
-    times: hall.times.map((t, i) => ({
-      time: movie.times[i] ?? t.time,
-      format: HALL_FORMATS[i] ?? t.format,
-    })),
-  }));
-
 export const FUNCTION_LABEL = "Sala 1 regular - 2D - Horario: 18:00 - Doblada / Esp";
 
 export const buildFunctionLabel = (hall?: string, time?: string, format?: string) =>

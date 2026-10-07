@@ -158,3 +158,31 @@ export async function cambiarEstadoPelicula(
   revalidatePath("/admin/peliculas");
   return { ok: true };
 }
+
+/**
+ * SCRUM-106 (botón "Eliminar" del panel): baja lógica + ocultado del listado admin.
+ *
+ * A diferencia de `cambiarEstadoPelicula` (interruptor de Estado), esta acción marca también
+ * `eliminada = true`, y `listPeliculasAdmin()` filtra esas filas: la película desaparece del
+ * panel pero sigue existiendo en la base (referencias de funciones/reservas intactas).
+ * `activa = false` además la saca de la cartelera pública, como cualquier otra baja.
+ */
+export async function eliminarPelicula(id: number): Promise<ActionResult> {
+  const denied = await assertAdmin();
+  if (denied) return { ok: false, error: denied };
+  if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Película inválida." };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("pelicula")
+    .update({ activa: false, eliminada: true })
+    .eq("id", id)
+    .select("id, titulo")
+    .maybeSingle();
+  if (error) return { ok: false, error: `No se pudo eliminar: ${error.message}` };
+  if (!data) return { ok: false, error: "La película no existe." };
+
+  revalidatePath("/");
+  revalidatePath("/admin/peliculas");
+  return { ok: true };
+}

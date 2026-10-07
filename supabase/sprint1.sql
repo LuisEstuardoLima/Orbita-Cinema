@@ -11,6 +11,14 @@ alter table pelicula
   add column if not exists actores         text,
   add column if not exists estudio         text;
 
+-- Baja definitiva del panel admin (botón "Eliminar"). No es lo mismo que `activa`:
+--   activa    -> controla la cartelera pública (interruptor de Estado del panel)
+--   eliminada -> oculta la película del listado del panel admin
+-- El botón Eliminar pone `activa = false` y `eliminada = true`; el interruptor solo toca `activa`.
+-- Nunca debe quedar `eliminada = true` con `activa = true`.
+alter table pelicula
+  add column if not exists eliminada boolean not null default false;
+
 -- slug a partir del título (ej. "Spider-Man: Un nuevo universo" -> spider-man-un-nuevo-universo)
 update pelicula
 set slug = trim(both '-' from lower(regexp_replace(

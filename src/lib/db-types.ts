@@ -12,6 +12,7 @@ export type PeliculaRow = {
   actor_principal: string | null; // columna que agregó sprint1.sql v1; se lee como respaldo de `actores`
   estudio: string | null;
   activa: boolean;
+  eliminada: boolean; // true = oculta del panel admin (botón Eliminar); nunca se borra la fila
 };
 
 export type SalaRow = {

@@ -11,7 +11,10 @@
  * - `applied`: lo que realmente está filtrando la cartelera en este momento.
  *
  * Los modales (fecha, horario, idioma) confirman con OK y mueven las dos listas a la vez
- * (`aplicar`). La búsqueda y la clasificación son incrementales y usan el botón "Filtrar".
+ * (`aplicar`). La búsqueda se muestra al instante mientras se escribe: filtra en memoria la
+ * lista que ya trajo `page.tsx`, así que NO consulta la base por cada letra (no necesita
+ * debounce). Enter o "Filtrar" la dejan aplicada en `applied` y en la URL. La clasificación
+ * sigue aplicándose con el botón "Filtrar".
  *
  * La URL es la fuente de verdad: `sincronizarUrl` escribe los filtros aplicados en la barra de
  * direcciones con `replace` (no `push`, para no llenar el historial del botón "atrás"). Así, si
@@ -110,9 +113,13 @@ export function CarteleraClient({
     setApplied(iniciales);
   }, [urlRecibida, urlActual, iniciales]);
 
+  // La búsqueda reacciona a cada tecla (`draft.query`); el resto de los filtros usa `applied`.
+  // El filtrado es puro arreglo en memoria — los datos ya están en el navegador — así que no hay
+  // consultas a la base ni esperas entre letras. El debounce solo sería necesario si al escribir
+  // llamáramos a `sincronizarUrl` (router.replace recarga page.tsx, que sí consulta Supabase).
   const visibles = useMemo(
-    () => peliculasVisibles(peliculas, applied),
-    [peliculas, applied],
+    () => peliculasVisibles(peliculas, { ...applied, query: draft.query }),
+    [peliculas, applied, draft.query],
   );
 
   const diasConFuncion = useMemo(

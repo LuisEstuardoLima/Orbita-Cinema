@@ -7,27 +7,29 @@
  * Cuando necesita guardar algo, llama a las Server Actions de `./actions`; esas corren en el
  * servidor con la service role, que es la única forma de escribir en la base.
  *
- * Decisión de diseño del Sprint 1 (SCRUM-106): no hay botón de eliminar. Solo un interruptor que
- * activa y desactiva (`activa`). Desactivar es una baja lógica, nunca un DELETE, y el panel
- * muestra las inactivas para que la acción siempre sea reversible. Ver la nota completa en
- * `actions.ts` y en el README.
+ * Decisión de diseño del Sprint 1 (SCRUM-106): la baja nunca es un DELETE. El interruptor de la
+ * columna Estado solo cambia `activa` (la película sigue en el panel para poder reactivarla) y el
+ * botón Eliminar marca `eliminada = true` para que `listPeliculasAdmin()` la saque del listado;
+ * en ambos casos los datos siguen intactos en la base. Ver la nota en `actions.ts` y en el README.
  *
  * `useTransition` + `pendiente` sirven para deshabilitar la interfaz mientras el servidor responde.
  */
 import { useState, useTransition, type ChangeEvent, type FormEvent } from "react";
-import { CircleUserRound, Plus, Search, Upload } from "lucide-react";
+import { CircleUserRound, Pencil, Plus, Search, Trash, Upload } from "lucide-react";
 import { Modal } from "@/components/cinema/Modal";
 import { PosterImage } from "@/components/cinema/PosterImage";
 import { Switch } from "@/components/ui/switch";
 import { CLASIFICACIONES, GENEROS } from "@/lib/cartelera";
 import type { PeliculaRow } from "@/lib/db-types";
-import { cambiarEstadoPelicula, crearPelicula } from "./actions";
+import { cambiarEstadoPelicula, crearPelicula, eliminarPelicula } from "./actions";
 
 const NAV = ["Dashboard", "Películas", "Funciones", "Salas & asientos", "Reportes", "Usuarios"];
 
 export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }) {
   const [creando, setCreando] = useState(false);
   const [aDesactivar, setADesactivar] = useState<PeliculaRow | null>(null);
+  const [aEliminar, setAEliminar] = useState<PeliculaRow | null>(null);
+  const [ocultas, setOcultas] = useState<number[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [archivo, setArchivo] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -35,8 +37,12 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
   const [mensaje, setMensaje] = useState<{ texto: string; ok: boolean } | null>(null);
   const [pendiente, startTransition] = useTransition();
 
-  const filtradas = peliculas.filter((p) =>
-    p.titulo.toLowerCase().includes(busqueda.trim().toLowerCase()),
+  // Ocultado instantáneo tras eliminar: el servidor ya excluye `eliminada` al listar, pero así
+  // la fila desaparece sin esperar a la revalidación del listado.
+  const filtradas = peliculas.filter(
+    (p) =>
+      !ocultas.includes(p.id) &&
+      p.titulo.toLowerCase().includes(busqueda.trim().toLowerCase()),
   );
 
   const cerrarFormulario = () => {
@@ -77,6 +83,26 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
       setMensaje(
         res.ok
           ? { texto: `"${p.titulo}" vuelve a mostrarse en la cartelera.`, ok: true }
+          : { texto: res.error, ok: false },
+      );
+    });
+  };
+
+  /**
+   * Eliminar (columna Acciones): marca `eliminada = true` (y `activa = false`) en la base y
+   * oculta la fila del panel. No se borra nada: la película sigue existiendo en Supabase,
+   * solo sale del listado del admin.
+   */
+  const confirmarEliminacion = () => {
+    if (!aEliminar) return;
+    const { id, titulo } = aEliminar;
+    setAEliminar(null);
+    startTransition(async () => {
+      const res = await eliminarPelicula(id);
+      if (res.ok) setOcultas((prev) => [...prev, id]);
+      setMensaje(
+        res.ok
+          ? { texto: `"${titulo}" se eliminó del panel.`, ok: true }
           : { texto: res.error, ok: false },
       );
     });
@@ -164,6 +190,7 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                   <th className="px-4 py-3">Clasificación</th>
                   <th className="px-4 py-3">Género</th>
                   <th className="px-4 py-3">Estado</th>
+                  <th className="px-4 py-3">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -191,8 +218,8 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{m.genero ?? "—"}</td>
-                    {/* Editar es del Sprint 7 (SCRUM-67). El interruptor sustituye al botón
-                        de eliminar: la baja lógica siempre es reversible desde aquí. */}
+                    {/* Estado (SCRUM-106): el interruptor cambia `activa` sin ocultar la fila;
+                        para sacarla del listado está el botón Eliminar de la columna Acciones. */}
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2.5">
                         <Switch
@@ -207,6 +234,28 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                         >
                           {m.activa ? "Activa" : "Inactiva"}
                         </label>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {/* Editar (SCRUM-67): botón a la espera de su funcionalidad (Sprint 7). */}
+                        <button
+                          type="button"
+                          className="btn-ghost text-primary hover:border-primary hover:text-primary"
+                          disabled={pendiente}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost text-destructive hover:border-destructive hover:text-destructive"
+                          onClick={() => setAEliminar(m)}
+                          disabled={pendiente}
+                        >
+                          <Trash className="h-4 w-4" />
+                          Eliminar
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -352,6 +401,30 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
           Al desactivar <span className="font-semibold text-foreground">{aDesactivar?.titulo}</span>{" "}
           dejará de mostrarse en la cartelera. Seguirá visible en este panel y podrás volver a
           activarla cuando quieras. Esta acción no borra sus datos.
+        </p>
+      </Modal>
+
+      {/* Eliminar (columna Acciones): marca `eliminada = true` (y `activa = false`) en la base;
+          listPeliculasAdmin() filtra esas filas. La película no se borra, solo sale del panel. */}
+      <Modal
+        open={!!aEliminar}
+        title="Eliminar película del panel"
+        onClose={() => setAEliminar(null)}
+        footer={
+          <>
+            <button className="btn-ghost" onClick={() => setAEliminar(null)} disabled={pendiente}>
+              Cancelar
+            </button>
+            <button className="btn-primary" onClick={confirmarEliminacion} disabled={pendiente}>
+              {pendiente ? "Procesando..." : "Eliminar"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">{aEliminar?.titulo}</span> Esta acción
+          eliminará la película del panel de administración y de la cartelera, además de todas sus
+          funciones.
         </p>
       </Modal>
     </div>
