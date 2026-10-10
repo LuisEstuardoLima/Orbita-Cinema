@@ -380,7 +380,23 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                 </select>
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-4">
+              <div>
+                <label className="label" htmlFor="duracion_min">Duración (min)</label>
+                <input
+                  id="duracion_min"
+                  name="duracion_min"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={600}
+                  step={1}
+                  required
+                  className="field"
+                  placeholder="120"
+                  defaultValue={editando?.duracion_min ?? ""}
+                />
+              </div>
               <div>
                 <label className="label" htmlFor="director">Director</label>
                 <input

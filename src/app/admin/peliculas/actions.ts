@@ -29,6 +29,11 @@ const schema = z.object({
     .trim()
     .min(10, "La descripción debe tener al menos 10 caracteres.")
     .max(2000, "La descripción es demasiado larga."),
+  duracion_min: z.coerce
+    .number({ invalid_type_error: "La duración es obligatoria (en minutos)." })
+    .int("La duración debe ser un número entero de minutos.")
+    .min(1, "La duración debe ser de al menos 1 minuto.")
+    .max(600, "La duración no puede pasar de 600 minutos."),
   director: z.string().trim().max(100).optional(),
   actores: z.string().trim().max(100).optional(),
   estudio: z.string().trim().max(100).optional(),
@@ -49,6 +54,7 @@ export async function crearPelicula(formData: FormData): Promise<ActionResult> {
     clasificacion: campo(formData, "clasificacion"),
     genero: campo(formData, "genero"),
     sinopsis: campo(formData, "sinopsis"),
+    duracion_min: campo(formData, "duracion_min"),
     director: campo(formData, "director"),
     actores: campo(formData, "actores"),
     estudio: campo(formData, "estudio"),
@@ -109,6 +115,7 @@ export async function crearPelicula(formData: FormData): Promise<ActionResult> {
     clasificacion: d.clasificacion,
     genero: d.genero,
     sinopsis: d.sinopsis,
+    duracion_min: d.duracion_min,
     director: d.director ?? null,
     actores: d.actores ?? null,
     estudio: d.estudio ?? null,
@@ -219,6 +226,7 @@ export async function actualizarPelicula(id: number, formData: FormData): Promis
     clasificacion: campo(formData, "clasificacion"),
     genero: campo(formData, "genero"),
     sinopsis: campo(formData, "sinopsis"),
+    duracion_min: campo(formData, "duracion_min"),
     director: campo(formData, "director"),
     actores: campo(formData, "actores"),
     estudio: campo(formData, "estudio"),
@@ -282,6 +290,7 @@ export async function actualizarPelicula(id: number, formData: FormData): Promis
       clasificacion: d.clasificacion,
       genero: d.genero,
       sinopsis: d.sinopsis,
+      duracion_min: d.duracion_min,
       director: d.director ?? null,
       actores: d.actores ?? null,
       estudio: d.estudio ?? null,
