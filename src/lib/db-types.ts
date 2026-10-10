@@ -33,3 +33,12 @@ export type FuncionRow = {
   subtitulos: boolean | null;
   activa: boolean | null;
 };
+
+export type Perfil = {
+  id: string;
+  nombre: string;
+  apellido: string;
+  telefono: string | null;
+  rol: 'Cliente' | 'Admin';
+  created_at: string;
+};
