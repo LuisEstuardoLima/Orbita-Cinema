@@ -13,6 +13,7 @@ export type PeliculaRow = {
   estudio: string | null;
   activa: boolean;
   eliminada: boolean; // true = oculta del panel admin (botón Eliminar); nunca se borra la fila
+  duracion_min: number; // sprint2-funciones.sql (default 120); se usa para los cruces de horario
 };
 
 export type SalaRow = {

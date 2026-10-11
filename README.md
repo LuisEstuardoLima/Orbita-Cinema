@@ -26,6 +26,21 @@ Next.js se sigue ejecutando con Node (v20+); Bun se usa como gestor de paquetes 
 
 `AUTH_GUARD=off` (por defecto) deja navegar `/perfil` y `/admin/*` mientras la autenticación real no esté lista. Con `AUTH_GUARD=on`, `src/middleware.ts` exige sesión y rol (`app_metadata.rol` = `Cliente` | `Colaborador` | `Administrador`).
 
+## Sprint 2 · SCRUM-111 Gestión de funciones
+
+1. En Supabase > SQL Editor ejecutar `supabase/sprint2-funciones.sql` (después de `sprint1.sql`). Agrega `pelicula.duracion_min` (default 120) y un índice para validar cruces. Es idempotente.
+2. `/admin/funciones` (Administrador y Colaborador) lista las funciones desde hoy, filtra por fecha y película, y crea, modifica y cancela funciones con Server Actions (`assertRol` en `lib/auth/guard.ts`).
+3. Cancelar es una baja lógica (`funcion.activa = false`). Pendiente del Sprint 3: impedir editar o cancelar funciones con reservas (hay un `TODO` en `actions.ts`).
+4. Las películas nuevas usan 120 minutos hasta que se ajuste su `duracion_min` en Supabase (el formulario de películas todavía no tiene ese campo).
+
+### Cruce de horarios
+
+Una función ocupa su sala en el intervalo `[inicio, inicio + duracion_min + 15 min)` (15 min de limpieza). No se registra si se traslapa con otra función **activa** de la misma sala. Se compara en minutos absolutos (fecha + hora), así que también detecta cruces con funciones que pasan de medianoche; por eso la consulta revisa el día anterior y el siguiente (`buscarCruce` en `lib/db/funciones.ts`). La validación es solo del servidor.
+
+**Límite conocido:** es una validación de aplicación, no de la base. Si dos personas guardan exactamente al mismo tiempo funciones que se cruzan, ambas pueden pasar.
+
+**Mejora futura (alternativa B):** guardar el fin de cada función en `funcion` (p. ej. `inicio`/`fin` como `timestamp` calculados al crear) y agregar en Postgres una restricción de exclusión por sala (`create extension btree_gist` + `exclude using gist (id_sala with =, tsrange(inicio, fin) with &&) where (activa)`). La base rechazaría los traslapes aunque lleguen al mismo tiempo, y cambiar la duración de una película no movería las funciones ya programadas.
+
 ## Estructura
 
 ```
@@ -39,12 +54,14 @@ src/
 │  ├─ pago/                      # Pasarela prototipo (recargo 5 %)
 │  ├─ login/, perfil/            # Cuenta de cliente
 │  ├─ admin/peliculas/           # Panel Administrador (page + client + actions.ts), sin enlace en la navegación (RNF-015)
+│  ├─ admin/funciones/           # Gestión de funciones, Administrador y Colaborador (SCRUM-111)
 │  └─ api/                       # (por crear) Route Handlers: bloqueo de asientos, pago, boleto, correo
 ├─ components/
 │  ├─ cinema/                    # SiteHeader, Modal, FunctionHeader
 │  └─ ui/                        # shadcn/ui
 ├─ lib/
 │  ├─ db/cartelera.ts            # consultas a Supabase (cartelera, detalle, listado admin)
+│  ├─ db/funciones.ts            # consultas de /admin/funciones y validación de cruces
 │  ├─ cartelera.ts               # tipos y filtros puros (servidor y cliente)
 │  ├─ cinema-data.ts             # datos estáticos: solo los usan entradas/asientos/pago (sprints siguientes)
 │  ├─ search-params.ts           # parseo/armado del query string del flujo de compra
