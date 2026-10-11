@@ -34,11 +34,16 @@ export type FuncionRow = {
   activa: boolean | null;
 };
 
-export type Perfil = {
-  id: string;
+export type RolRow = {
+  id_rol: number; // 1 Cliente, 2 Colaborador, 3 Administrador
+  nombre: string;
+};
+
+export type UsuarioRow = {
+  id_usuario: string; // FK a auth.users.id
   nombre: string;
   apellido: string;
   telefono: string | null;
-  rol: 'Cliente' | 'Admin';
+  id_rol: number; // FK a rol.id_rol: la fuente única del rol
   created_at: string;
 };

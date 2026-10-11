@@ -24,7 +24,7 @@ Next.js se sigue ejecutando con Node (v20+); Bun se usa como gestor de paquetes 
 
 > Hasta el Sprint 2 (login) el panel admin no tiene autenticación: no lo desplieguen públicamente con `AUTH_GUARD=off`.
 
-`AUTH_GUARD=off` (por defecto) deja navegar `/perfil` y `/admin/*` mientras la autenticación real no esté lista. Con `AUTH_GUARD=on`, `src/middleware.ts` exige sesión y rol (`app_metadata.rol` = `Cliente` | `Colaborador` | `Administrador`).
+`AUTH_GUARD=off` (por defecto) deja navegar `/perfil` y `/admin/*` mientras la autenticación real no esté lista. Con `AUTH_GUARD=on`, `src/middleware.ts` exige sesión y rol. La fuente única del rol es la BD (`public.usuarios.id_rol` → `public.rol`, ver `supabase/sprint2-auth.sql`): `getRol()` consulta por request y devuelve `Cliente` | `Colaborador` | `Administrador`. El rol NO se lee del JWT ni de metadata editable por el usuario.
 
 ## Estructura
 

@@ -35,7 +35,7 @@ export function LoginClient() {
           </span>
         </div>
 
-        <h1 className="mb-6 text-center text-3xl tracking-wide">Login</h1>
+        <h1 className="mb-6 text-center text-3xl tracking-wide">Iniciar Sesión</h1>
 
         {error && (
           <div className="bg-destructive/10 border border-destructive text-destructive p-3 rounded-md mb-4 text-sm text-center">
@@ -45,16 +45,16 @@ export function LoginClient() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="label" htmlFor="email">Email:</label>
+            <label className="label" htmlFor="email">Correo Electrónico:</label>
             <input type="email" id="email" name="email" className="field" placeholder="correo@ejemplo.com" required />
           </div>
           <div>
-            <label className="label" htmlFor="password">Password:</label>
+            <label className="label" htmlFor="password">Contraseña:</label>
             <input type="password" id="password" name="password" className="field" placeholder="••••••••" required />
           </div>
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <input type="checkbox" defaultChecked className="h-4 w-4 accent-[var(--primary)]" />
-            Remember Me
+            Recordarme
           </label>
 
           <div className="mt-7 flex items-center justify-between">
@@ -63,10 +63,10 @@ export function LoginClient() {
               className="btn-primary px-8" 
               disabled={isPending}
             >
-              {isPending ? "Entrando..." : "Login"}
+              {isPending ? "Entrando..." : "Ingresar"}
             </button>
             <a href="#" className="text-sm text-muted-foreground hover:text-primary">
-              Forgot password?
+              Olvide mi contraseña
             </a>
           </div>
         </form>

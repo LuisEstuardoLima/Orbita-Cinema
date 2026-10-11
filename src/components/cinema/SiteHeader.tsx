@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation"; // Importamos useRouter
 import { CircleUserRound, Film, LogOut } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { cerrarSesion } from "@/lib/auth/actions";
 
@@ -17,13 +18,13 @@ export function SiteHeader() {
   useEffect(() => {
     const supabase = createClient();
 
-    async function cargarPerfil(usuario: any) {
+    async function cargarPerfil(usuario: User | null) {
       if (usuario) {
         const { data: perfil } = await supabase
-          .from("perfiles")
+          .from("usuarios")
           .select("nombre")
-          .eq("id", usuario.id)
-          .single();
+          .eq("id_usuario", usuario.id)
+          .maybeSingle();
           
         if (perfil) {
           setNombreUsuario(perfil.nombre);
@@ -41,7 +42,7 @@ export function SiteHeader() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      cargarPerfil(session?.user);
+      cargarPerfil(session?.user ?? null);
       
       // LA MAGIA AQUÍ: Si el usuario entra o sale, forzamos a Next.js a actualizar la caché
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
