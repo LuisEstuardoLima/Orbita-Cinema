@@ -29,6 +29,11 @@ const schema = z.object({
     .trim()
     .min(10, "La descripción debe tener al menos 10 caracteres.")
     .max(2000, "La descripción es demasiado larga."),
+  duracion_min: z.coerce
+    .number({ invalid_type_error: "La duración es obligatoria (en minutos)." })
+    .int("La duración debe ser un número entero de minutos.")
+    .min(1, "La duración debe ser de al menos 1 minuto.")
+    .max(600, "La duración no puede pasar de 600 minutos."),
   director: z.string().trim().max(100).optional(),
   actores: z.string().trim().max(100).optional(),
   estudio: z.string().trim().max(100).optional(),
@@ -49,6 +54,7 @@ export async function crearPelicula(formData: FormData): Promise<ActionResult> {
     clasificacion: campo(formData, "clasificacion"),
     genero: campo(formData, "genero"),
     sinopsis: campo(formData, "sinopsis"),
+    duracion_min: campo(formData, "duracion_min"),
     director: campo(formData, "director"),
     actores: campo(formData, "actores"),
     estudio: campo(formData, "estudio"),
@@ -109,6 +115,7 @@ export async function crearPelicula(formData: FormData): Promise<ActionResult> {
     clasificacion: d.clasificacion,
     genero: d.genero,
     sinopsis: d.sinopsis,
+    duracion_min: d.duracion_min,
     director: d.director ?? null,
     actores: d.actores ?? null,
     estudio: d.estudio ?? null,
@@ -165,7 +172,15 @@ export async function cambiarEstadoPelicula(
  * A diferencia de `cambiarEstadoPelicula` (interruptor de Estado), esta acción marca también
  * `eliminada = true`, y `listPeliculasAdmin()` filtra esas filas: la película desaparece del
  * panel pero sigue existiendo en la base (referencias de funciones/reservas intactas).
- * `activa = false` además la saca de la cartelera pública, como cualquier otra baja.
+ * Las funciones de la película quedan desactivadas en cascada (`funcion.activa = false`) para
+ * que no sigan "vivas" con la película eliminada. Tampoco se borran filas: la baja es solo de
+ * estado, por auditoría (se recuperan con `select * from funcion where id_pelicula = X`), y así
+ * no se invalida ninguna reserva o boleto ya emitido. Reactivar la película más adelante NO
+ * reactiva sus funciones automáticamente: es decisión explícita del admin (ver README).
+ *
+ * El orden importa: primero las funciones y después la película. Si fallara lo segundo, la
+ * película seguirá visible en el panel y se puede reintentar (la acción es idempotente); al
+ * revés, la película quedaría oculta sin forma de reintentar desde la UI.
  */
 export async function eliminarPelicula(id: number): Promise<ActionResult> {
   const denied = await assertAdmin();
@@ -173,6 +188,18 @@ export async function eliminarPelicula(id: number): Promise<ActionResult> {
   if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Película inválida." };
 
   const admin = createAdminClient();
+
+  // Cascada sobre las funciones de la película: primero aquí para que un fallo deje la película
+  // visible en el panel y permita reintentar (la acción es idempotente). Solo baja de estado:
+  // las filas se conservan por auditoría y para no invalidar boletos ya emitidos.
+  const { error: errFunciones } = await admin
+    .from("funcion")
+    .update({ activa: false })
+    .eq("id_pelicula", id);
+  if (errFunciones) {
+    return { ok: false, error: `No se pudieron desactivar las funciones: ${errFunciones.message}` };
+  }
+
   const { data, error } = await admin
     .from("pelicula")
     .update({ activa: false, eliminada: true })
@@ -184,5 +211,131 @@ export async function eliminarPelicula(id: number): Promise<ActionResult> {
 
   revalidatePath("/");
   revalidatePath("/admin/peliculas");
+  return { ok: true };
+}
+
+/** Ruta del archivo dentro del bucket `posters`, o null si la URL no es de nuestro Storage. */
+function rutaEnBucket(url: string | null): string | null {
+  if (!url) return null;
+  const marca = "/storage/v1/object/public/posters/";
+  const i = url.indexOf(marca);
+  if (i === -1) return null; // p. ej. un enlace externo de prueba: no es nuestro, no se borra
+  return decodeURIComponent(url.slice(i + marca.length).split("?")[0] ?? "") || null;
+}
+
+/**
+ * SCRUM-108: modificar los datos de una película ya registrada.
+ *
+ * - Solo se puede editar una película DESACTIVADA (`activa = false`): una película a la venta no
+ *   se modifica. Esta es la validación que cuenta; la interfaz solo avisa, pero cualquiera
+ *   podría invocar la acción directamente. Editar no cambia `activa`: eso solo lo hace el
+ *   interruptor del panel.
+ * - El `slug` NO se recalcula aunque cambie el título: es la URL pública (`/pelicula/[slug]`) y
+ *   cambiarlo rompería los enlaces ya compartidos.
+ * - Póster nuevo: se sube primero, luego se actualiza la fila y por último se borra el anterior.
+ *   Así, si algo falla a medias, la película nunca se queda sin imagen. Sin archivo nuevo, el
+ *   póster actual se conserva.
+ */
+export async function actualizarPelicula(id: number, formData: FormData): Promise<ActionResult> {
+  const denied = await assertAdmin();
+  if (denied) return { ok: false, error: denied };
+  if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Película inválida." };
+
+  const parsed = schema.safeParse({
+    titulo: campo(formData, "titulo"),
+    clasificacion: campo(formData, "clasificacion"),
+    genero: campo(formData, "genero"),
+    sinopsis: campo(formData, "sinopsis"),
+    duracion_min: campo(formData, "duracion_min"),
+    director: campo(formData, "director"),
+    actores: campo(formData, "actores"),
+    estudio: campo(formData, "estudio"),
+  });
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  const d = parsed.data;
+
+  const admin = createAdminClient();
+
+  const { data: actual, error: errActual } = await admin
+    .from("pelicula")
+    .select("id, slug, titulo, poster_url, activa, eliminada")
+    .eq("id", id)
+    .maybeSingle();
+  if (errActual) return { ok: false, error: `No se pudo leer la película: ${errActual.message}` };
+  if (!actual || actual.eliminada) return { ok: false, error: "La película no existe." };
+  if (actual.activa) {
+    return {
+      ok: false,
+      error: "Solo se puede editar una película desactivada. Desactívala primero desde el interruptor de Estado.",
+    };
+  }
+
+  // Mismo criterio que al registrar: no puede haber dos películas ACTIVAS con el mismo título.
+  // Solo se revisa si el título cambió; así una película inactiva cuyo título ya usa otra activa
+  // (caso permitido al registrar) se puede seguir editando sin tocar el título.
+  if (normalizar(d.titulo) !== normalizar(actual.titulo)) {
+    const { data: homonimas, error: errDup } = await admin
+      .from("pelicula")
+      .select("id, titulo")
+      .eq("activa", true)
+      .neq("id", id)
+      .ilike("titulo", d.titulo);
+    if (errDup) return { ok: false, error: `No se pudo validar el título: ${errDup.message}` };
+    const repetida = (homonimas ?? []).find(
+      (p: { titulo: string }) => normalizar(p.titulo) === normalizar(d.titulo),
+    );
+    if (repetida) return { ok: false, error: `Ya existe una película activa llamada "${repetida.titulo}".` };
+  }
+
+  // póster nuevo (opcional)
+  let posterNuevoPath: string | null = null;
+  let posterNuevoUrl: string | null = null;
+  const poster = formData.get("poster");
+  if (poster instanceof File && poster.size > 0) {
+    const ext = POSTER_TYPES[poster.type];
+    if (!ext) return { ok: false, error: "El póster debe ser JPG, PNG o WEBP." };
+    if (poster.size > MAX_POSTER_BYTES) return { ok: false, error: "El póster no puede pasar de 4 MB." };
+    posterNuevoPath = `${actual.slug}-${Date.now()}.${ext}`;
+    const subida = await admin.storage
+      .from("posters")
+      .upload(posterNuevoPath, poster, { contentType: poster.type, upsert: false });
+    if (subida.error) return { ok: false, error: `No se pudo subir el póster: ${subida.error.message}` };
+    posterNuevoUrl = admin.storage.from("posters").getPublicUrl(posterNuevoPath).data.publicUrl;
+  }
+
+  const { data: guardada, error } = await admin
+    .from("pelicula")
+    .update({
+      titulo: d.titulo,
+      clasificacion: d.clasificacion,
+      genero: d.genero,
+      sinopsis: d.sinopsis,
+      duracion_min: d.duracion_min,
+      director: d.director ?? null,
+      actores: d.actores ?? null,
+      estudio: d.estudio ?? null,
+      ...(posterNuevoUrl ? { poster_url: posterNuevoUrl } : {}),
+    })
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+  if (error || !guardada) {
+    if (posterNuevoPath) await admin.storage.from("posters").remove([posterNuevoPath]);
+    return {
+      ok: false,
+      error: error ? `No se pudo guardar los cambios: ${error.message}` : "La película no existe.",
+    };
+  }
+
+  // El póster anterior ya no se usa: se borra de Storage (si era nuestro). Si falla no importa
+  // para el usuario, solo queda un archivo huérfano.
+  if (posterNuevoUrl) {
+    const anterior = rutaEnBucket(actual.poster_url);
+    if (anterior) await admin.storage.from("posters").remove([anterior]);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/admin/peliculas");
+  revalidatePath(`/pelicula/${actual.slug}`);
   return { ok: true };
 }

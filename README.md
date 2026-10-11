@@ -24,20 +24,20 @@ Next.js se sigue ejecutando con Node (v20+); Bun se usa como gestor de paquetes 
 
 > Hasta el Sprint 2 (login) el panel admin no tiene autenticación: no lo desplieguen públicamente con `AUTH_GUARD=off`.
 
-`AUTH_GUARD=off` (por defecto) deja navegar `/perfil` y `/admin/*` mientras la autenticación real no esté lista. Con `AUTH_GUARD=on`, `src/middleware.ts` exige sesión y rol (`app_metadata.rol` = `Cliente` | `Colaborador` | `Administrador`).
+`AUTH_GUARD=off` (por defecto) deja navegar `/perfil` y `/admin/*` mientras la autenticación real no esté lista. Con `AUTH_GUARD=on`, `src/middleware.ts` exige sesión y rol. La fuente única del rol es la BD (`public.usuarios.id_rol` → `public.rol`, ver `supabase/sprint2-auth.sql`): `getRol()` consulta por request y devuelve `Cliente` | `Colaborador` | `Administrador`. El rol NO se lee del JWT ni de metadata editable por el usuario.
 
 ## Sprint 2 · SCRUM-111 Gestión de funciones
 
-1. En Supabase > SQL Editor ejecutar `supabase/sprint2-funciones.sql` (después de `sprint1.sql`). Agrega `pelicula.duracion_min` (default 120) y un índice para validar cruces. Es idempotente.
-2. `/admin/funciones` (Administrador y Colaborador) lista las funciones desde hoy, filtra por fecha y película, y crea, modifica y cancela funciones con Server Actions (`assertRol` en `lib/auth/guard.ts`).
+1. En Supabase > SQL Editor ejecutar `supabase/sprint2-funciones.sql` (después de `sprint1.sql`). Asegura `pelicula.duracion_min` (no la cambia si ya existe), completa la duración de las 6 películas de prueba que no la tengan y crea un índice para validar cruces. Es idempotente.
+2. `/admin/funciones` (Administrador y Colaborador, módulo "Funciones" del panel) lista las funciones desde hoy, filtra por fecha y película, y crea, modifica y cancela funciones con Server Actions (`assertRol` en `lib/auth/guard.ts`).
 3. Cancelar es una baja lógica (`funcion.activa = false`). Pendiente del Sprint 3: impedir editar o cancelar funciones con reservas (hay un `TODO` en `actions.ts`).
-4. Las películas nuevas usan 120 minutos hasta que se ajuste su `duracion_min` en Supabase (el formulario de películas todavía no tiene ese campo).
+4. La duración se captura en el formulario de películas (SCRUM-108). Una película sin `duracion_min` (null) se trata como de 120 minutos al calcular cruces.
 
 ### Cruce de horarios
 
 Una función ocupa su sala en el intervalo `[inicio, inicio + duracion_min + 15 min)` (15 min de limpieza). No se registra si se traslapa con otra función **activa** de la misma sala. Se compara en minutos absolutos (fecha + hora), así que también detecta cruces con funciones que pasan de medianoche; por eso la consulta revisa el día anterior y el siguiente (`buscarCruce` en `lib/db/funciones.ts`). La validación es solo del servidor.
 
-**Límite conocido:** es una validación de aplicación, no de la base. Si dos personas guardan exactamente al mismo tiempo funciones que se cruzan, ambas pueden pasar.
+**Límite conocido:** es una validación de aplicación, no de la base. Si dos personas guardan exactamente al mismo tiempo funciones que se cruzan, ambas pueden pasar. Tampoco se revalidan las funciones ya programadas si después se cambia la duración de su película.
 
 **Mejora futura (alternativa B):** guardar el fin de cada función en `funcion` (p. ej. `inicio`/`fin` como `timestamp` calculados al crear) y agregar en Postgres una restricción de exclusión por sala (`create extension btree_gist` + `exclude using gist (id_sala with =, tsrange(inicio, fin) with &&) where (activa)`). La base rechazaría los traslapes aunque lleguen al mismo tiempo, y cambiar la duración de una película no movería las funciones ya programadas.
 
@@ -106,7 +106,9 @@ Estas decisiones ya están tomadas. No volver a abrirlas sin revisarlas.
 
 **Al desactivar no se tocan las reservas ni los boletos ya emitidos.** Un boleto vendido es una promesa: la baja solo impide vender *nuevas* entradas, nunca invalida las anteriores.
 
-**Cuando exista el flujo de compra hay que validar `activa` al escribir, no solo al leer.** Ocultar la película de la cartelera no basta: alguien puede tener la pantalla de pago abierta cuando el admin la desactiva. Al crear la reserva y al confirmar el pago hay que releer `pelicula.activa` **y** `funcion.activa` contra la base y rechazar con un mensaje claro si ya no está disponible. Las funciones no se desactivan en cascada al dar de baja una película (el módulo de funciones aún no existe), por eso hay que revisar las dos.
+**Eliminar apaga las funciones de la película en cascada.** `eliminarPelicula` pone `funcion.activa = false` en todas las funciones de la película antes de marcar `eliminada = true`. Nunca es un DELETE: las filas se conservan por auditoría (se recuperan con `select * from funcion where id_pelicula = X`) y para no invalidar reservas o boletos ya emitidos. El orden de las escrituras es funciones → película, para que un fallo deje la película reintentable en el panel. Reactivar la película más adelante NO reactiva sus funciones automáticamente.
+
+**Cuando exista el flujo de compra hay que validar `activa` al escribir, no solo al leer.** Ocultar la película de la cartelera no basta: alguien puede tener la pantalla de pago abierta cuando el admin la desactiva. Al crear la reserva y al confirmar el pago hay que releer `pelicula.activa` **y** `funcion.activa` contra la base y rechazar con un mensaje claro si ya no está disponible. El interruptor de Estado (desactivar) no apaga las funciones en cascada: al reactivar la película, sus funciones siguen ahí. Por eso hay que releer las dos. En cambio, el botón Eliminar sí las apaga todas (ver arriba).
 
 **Registrar una película con el título de una que ya está activa se rechaza** (`crearPelicula`). Una película dada de baja sí admite una nueva con el mismo título, porque el objetivo es activar la existente.
 

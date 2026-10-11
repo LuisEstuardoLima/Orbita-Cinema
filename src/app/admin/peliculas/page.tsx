@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Gestión de películas | Órbita Cinema",
   description:
-    "Panel de administración de Órbita Cinema para registrar y dar de baja películas de la cartelera.",
+    "Panel de administración de Órbita Cinema para registrar, editar y dar de baja películas de la cartelera.",
   robots: { index: false, follow: false },
   openGraph: {
     title: "Gestión de películas | Órbita Cinema",

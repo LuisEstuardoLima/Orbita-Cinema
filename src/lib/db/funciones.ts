@@ -14,6 +14,9 @@ import type { FuncionRow, PeliculaRow, SalaRow } from "@/lib/db-types";
 /** Minutos de limpieza de la sala entre una función y la siguiente. */
 export const LIMPIEZA_MIN = 15;
 
+/** Duración que se asume para una película sin `duracion_min` (columna nullable). */
+export const DURACION_DEFECTO_MIN = 120;
+
 /** Fila del listado admin: la función con el título de su película y el nombre de su sala. */
 export type FuncionAdmin = {
   id: number;
@@ -45,8 +48,12 @@ export async function listFuncionesAdmin(): Promise<{ hoy: string; funciones: Fu
   if (pel.error) throw new Error(`pelicula: ${pel.error.message}`);
   if (sal.error) throw new Error(`sala: ${sal.error.message}`);
 
-  const titulos = new Map((pel.data as Pick<PeliculaRow, "id" | "titulo">[]).map((p) => [p.id, p.titulo]));
-  const salas = new Map((sal.data as Pick<SalaRow, "id" | "nombre">[]).map((s) => [s.id, s.nombre]));
+  const titulos = new Map(
+    (pel.data as Pick<PeliculaRow, "id" | "titulo">[]).map((p) => [p.id, p.titulo]),
+  );
+  const salas = new Map(
+    (sal.data as Pick<SalaRow, "id" | "nombre">[]).map((s) => [s.id, s.nombre]),
+  );
 
   return {
     hoy,
@@ -144,7 +151,9 @@ export async function buscarCruce(nueva: {
   const otras = fun.data as FuncionRow[];
   if (otras.length === 0) return null;
 
-  const ids = [...new Set(otras.map((f) => f.id_pelicula).filter((id): id is number => id != null))];
+  const ids = [
+    ...new Set(otras.map((f) => f.id_pelicula).filter((id): id is number => id != null)),
+  ];
   const pel = await admin.from("pelicula").select("id, titulo, duracion_min").in("id", ids);
   if (pel.error) throw new Error(`pelicula: ${pel.error.message}`);
   const peliculas = new Map(
@@ -157,7 +166,7 @@ export async function buscarCruce(nueva: {
   for (const f of otras) {
     const p = f.id_pelicula == null ? undefined : peliculas.get(f.id_pelicula);
     const otroInicio = minutosAbs(f.fecha, f.hora.slice(0, 5));
-    const otroFin = otroInicio + (p?.duracion_min ?? 120) + LIMPIEZA_MIN;
+    const otroFin = otroInicio + (p?.duracion_min ?? DURACION_DEFECTO_MIN) + LIMPIEZA_MIN;
     if (inicio < otroFin && otroInicio < fin) {
       return {
         pelicula: p?.titulo ?? "otra película",

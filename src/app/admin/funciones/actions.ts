@@ -16,7 +16,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertRol } from "@/lib/auth/guard";
 import { IDIOMAS_FILTRO } from "@/lib/cartelera";
-import { buscarCruce } from "@/lib/db/funciones";
+import { buscarCruce, DURACION_DEFECTO_MIN } from "@/lib/db/funciones";
 import { ahoraGuatemala, parseFecha, toFecha } from "@/lib/fechas";
 import type { FuncionRow, PeliculaRow, SalaRow } from "@/lib/db-types";
 import type { Rol } from "@/lib/roles";
@@ -30,7 +30,10 @@ const schema = z.object({
     .number({ invalid_type_error: "Elige una película." })
     .int()
     .positive("Elige una película."),
-  idSala: z.coerce.number({ invalid_type_error: "Elige una sala." }).int().positive("Elige una sala."),
+  idSala: z.coerce
+    .number({ invalid_type_error: "Elige una sala." })
+    .int()
+    .positive("Elige una sala."),
   fecha: z
     .string({ required_error: "La fecha es obligatoria." })
     .regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha no es válida.")
@@ -75,7 +78,8 @@ async function validar(
     idioma: campo(formData, "idioma"),
     subtitulos: formData.get("subtitulos") === "on",
   });
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  if (!parsed.success)
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Datos inválidos." };
   const d = parsed.data;
 
   if (yaEmpezo(d.fecha, d.hora)) {
@@ -93,7 +97,8 @@ async function validar(
       .maybeSingle(),
     admin.from("sala").select("id, nombre, activa").eq("id", d.idSala).maybeSingle(),
   ]);
-  if (pel.error) return { ok: false, error: `No se pudo validar la película: ${pel.error.message}` };
+  if (pel.error)
+    return { ok: false, error: `No se pudo validar la película: ${pel.error.message}` };
   if (sal.error) return { ok: false, error: `No se pudo validar la sala: ${sal.error.message}` };
   const pelicula = pel.data as Pick<PeliculaRow, "activa" | "eliminada" | "duracion_min"> | null;
   const sala = sal.data as Pick<SalaRow, "nombre" | "activa"> | null;
@@ -107,7 +112,7 @@ async function validar(
       idSala: d.idSala,
       fecha: d.fecha,
       hora: d.hora,
-      duracionMin: pelicula.duracion_min,
+      duracionMin: pelicula.duracion_min ?? DURACION_DEFECTO_MIN,
       excluirId,
     });
     if (cruce) {
@@ -196,7 +201,10 @@ export async function cancelarFuncion(id: number): Promise<ActionResult> {
   const actual = await funcionModificable(id);
   if (!actual.ok) return actual;
 
-  const { error } = await createAdminClient().from("funcion").update({ activa: false }).eq("id", id);
+  const { error } = await createAdminClient()
+    .from("funcion")
+    .update({ activa: false })
+    .eq("id", id);
   if (error) return { ok: false, error: `No se pudo cancelar la función: ${error.message}` };
 
   revalidarCartelera();

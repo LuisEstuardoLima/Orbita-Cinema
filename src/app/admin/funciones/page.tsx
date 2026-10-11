@@ -3,13 +3,13 @@
  *
  * Server Component mínimo, igual que `/admin/peliculas`: pide al servidor el listado y las
  * opciones del formulario (solo películas y salas activas) y se los pasa al componente cliente.
+ * Se renderiza dentro de `admin/layout.tsx` (SCRUM-112), que pone el encabezado y el menú.
  *
  * Acceso: Administrador y Colaborador. `src/middleware.ts` ya cubre `/admin/*` con esos dos
  * roles, y las Server Actions lo vuelven a verificar con `assertRol`; ambos SOLO si
  * `AUTH_GUARD=on`. Ver el README.
  */
 import type { Metadata } from "next";
-import { assertAdmin } from "@/lib/auth/guard";
 import { listFuncionesAdmin, listOpcionesFuncion } from "@/lib/db/funciones";
 import { AdminFuncionesClient } from "./admin-funciones-client";
 
@@ -27,18 +27,11 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const [{ hoy, funciones }, { peliculas, salas }, noEsAdmin] = await Promise.all([
+  const [{ hoy, funciones }, { peliculas, salas }] = await Promise.all([
     listFuncionesAdmin(),
     listOpcionesFuncion(),
-    assertAdmin(), // misma regla que el middleware para /admin/peliculas
   ]);
   return (
-    <AdminFuncionesClient
-      hoy={hoy}
-      funciones={funciones}
-      peliculas={peliculas}
-      salas={salas}
-      esAdmin={noEsAdmin === null}
-    />
+    <AdminFuncionesClient hoy={hoy} funciones={funciones} peliculas={peliculas} salas={salas} />
   );
 }

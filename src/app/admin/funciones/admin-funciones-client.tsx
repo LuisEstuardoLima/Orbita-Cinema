@@ -7,17 +7,19 @@
  * filtros por fecha y película son locales, como el buscador de `/admin/peliculas`. Para guardar
  * llama a las Server Actions de `./actions`, que repiten todas las validaciones en el servidor.
  *
- * El menú lateral del panel es la historia SCRUM-112: aquí solo hay un enlace para volver.
+ * Se muestra dentro del layout común del panel (SCRUM-112), que ya pone encabezado y menú.
  */
-import Link from "next/link";
 import { useState, useTransition, type FormEvent } from "react";
 import { format } from "date-fns";
-import { ArrowLeft, Ban, CircleUserRound, Pencil, Plus } from "lucide-react";
+import { Ban, Pencil, Plus } from "lucide-react";
 import { Modal } from "@/components/cinema/Modal";
 import { IDIOMAS_FILTRO, idiomaGrupo } from "@/lib/cartelera";
 import type { FuncionAdmin, OpcionPelicula, OpcionSala } from "@/lib/db/funciones";
 import { parseFecha } from "@/lib/fechas";
 import { cancelarFuncion, crearFuncion, editarFuncion } from "./actions";
+
+/** Filtro de la columna Estado: "" = Todas. */
+type FiltroEstado = "" | "activas" | "canceladas";
 
 const fechaCorta = (fecha: string) => format(parseFecha(fecha), "dd/MM/yyyy");
 
@@ -32,19 +34,18 @@ export function AdminFuncionesClient({
   funciones,
   peliculas,
   salas,
-  esAdmin,
 }: {
   hoy: string;
   funciones: FuncionAdmin[];
   peliculas: OpcionPelicula[];
   salas: OpcionSala[];
-  esAdmin: boolean;
 }) {
   // null = formulario cerrado; "nueva" = crear; una función = editar esa.
   const [formulario, setFormulario] = useState<FuncionAdmin | "nueva" | null>(null);
   const [aCancelar, setACancelar] = useState<FuncionAdmin | null>(null);
   const [filtroFecha, setFiltroFecha] = useState("");
   const [filtroPelicula, setFiltroPelicula] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("");
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<{ texto: string; ok: boolean } | null>(null);
   const [pendiente, startTransition] = useTransition();
@@ -54,7 +55,8 @@ export function AdminFuncionesClient({
   const filtradas = funciones.filter(
     (f) =>
       (!filtroFecha || f.fecha === filtroFecha) &&
-      (!filtroPelicula || String(f.idPelicula) === filtroPelicula),
+      (!filtroPelicula || String(f.idPelicula) === filtroPelicula) &&
+      (!filtroEstado || f.activa === (filtroEstado === "activas")),
   );
 
   // Para el filtro: todas las películas que tienen funciones listadas (aunque ya estén inactivas).
@@ -78,7 +80,9 @@ export function AdminFuncionesClient({
       if (res.ok) {
         cerrarFormulario();
         setMensaje({
-          texto: editando ? "Función modificada correctamente." : "Función registrada correctamente.",
+          texto: editando
+            ? "Función modificada correctamente."
+            : "Función registrada correctamente.",
           ok: true,
         });
       } else {
@@ -105,161 +109,168 @@ export function AdminFuncionesClient({
   };
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto max-w-[1400px] px-6 py-8">
-        {/* Solo el Administrador puede entrar a /admin/peliculas, así que al Colaborador no se le
-            muestra. Cuando SCRUM-112 cree /admin, este enlace debe apuntar ahí para ambos roles. */}
-        {esAdmin && (
-          <Link
-            href="/admin/peliculas"
-            className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
-          >
-            <ArrowLeft className="h-4 w-4" /> Volver al panel
-          </Link>
-        )}
+    <>
+      {/* El encabezado y el menú del panel viven en `admin/layout.tsx` (SCRUM-112). */}
+      <section className="card-surface overflow-hidden">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <h1 className="text-3xl tracking-wide">Gestión de funciones</h1>
+        </div>
 
-        <section className="card-surface overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
-            <h1 className="text-3xl tracking-wide">Gestión de funciones</h1>
-            <span className="flex items-center gap-2 text-sm text-secondary">
-              <CircleUserRound className="h-6 w-6" /> Usuario Id
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-end justify-between gap-4 px-6 py-5">
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <label className="label" htmlFor="filtro-fecha">Fecha</label>
-                <input
-                  id="filtro-fecha"
-                  type="date"
-                  className="field"
-                  min={hoy}
-                  value={filtroFecha}
-                  onChange={(e) => setFiltroFecha(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor="filtro-pelicula">Película</label>
-                <select
-                  id="filtro-pelicula"
-                  className="field"
-                  value={filtroPelicula}
-                  onChange={(e) => setFiltroPelicula(e.target.value)}
-                >
-                  <option value="">Todas las películas</option>
-                  {peliculasListadas.map(([id, titulo]) => (
-                    <option key={id} value={String(id)}>
-                      {titulo}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {(filtroFecha || filtroPelicula) && (
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={() => {
-                    setFiltroFecha("");
-                    setFiltroPelicula("");
-                  }}
-                >
-                  Quitar filtros
-                </button>
-              )}
+        <div className="flex flex-wrap items-end justify-between gap-4 px-6 py-5">
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="label" htmlFor="filtro-fecha">
+                Fecha
+              </label>
+              <input
+                id="filtro-fecha"
+                type="date"
+                className="field"
+                min={hoy}
+                value={filtroFecha}
+                onChange={(e) => setFiltroFecha(e.target.value)}
+              />
             </div>
-            <button
-              className="btn-primary"
-              onClick={() => {
-                setMensaje(null);
-                setFormulario("nueva");
-              }}
-            >
-              <Plus className="h-4 w-4" /> Nueva función
-            </button>
-          </div>
-
-          {mensaje && (
-            <p
-              role="status"
-              className={`mx-6 mb-4 rounded-md border px-4 py-2 text-sm ${
-                mensaje.ok
-                  ? "border-border bg-surface-2 text-secondary"
-                  : "border-destructive/50 bg-destructive/10 text-destructive"
-              }`}
-            >
-              {mensaje.texto}
-            </p>
-          )}
-
-          <div className="overflow-x-auto px-6 pb-6">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="bg-surface-2 text-left uppercase tracking-wider text-muted-foreground">
-                  <th className="px-4 py-3">Película</th>
-                  <th className="px-4 py-3">Sala</th>
-                  <th className="px-4 py-3">Fecha</th>
-                  <th className="px-4 py-3">Hora</th>
-                  <th className="px-4 py-3">Idioma</th>
-                  <th className="px-4 py-3">Subtítulos</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtradas.map((f) => (
-                  <tr
-                    key={f.id}
-                    className={`border-b border-border transition-colors hover:bg-surface-2/60 ${
-                      f.activa ? "" : "opacity-60"
-                    }`}
-                  >
-                    <td className="px-4 py-3 font-semibold">{f.pelicula}</td>
-                    <td className="px-4 py-3">{f.sala}</td>
-                    <td className="px-4 py-3">{fechaCorta(f.fecha)}</td>
-                    <td className="px-4 py-3">{f.hora}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{f.idioma || "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{f.subtitulos ? "Sí" : "No"}</td>
-                    <td className="px-4 py-3 text-xs font-medium text-muted-foreground">
-                      {f.activa ? "Activa" : "Cancelada"}
-                    </td>
-                    <td className="px-4 py-3">
-                      {f.activa && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className="btn-ghost text-primary hover:border-primary hover:text-primary"
-                            onClick={() => {
-                              setMensaje(null);
-                              setFormulario(f);
-                            }}
-                            disabled={pendiente}
-                          >
-                            <Pencil className="h-4 w-4" />
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-ghost text-destructive hover:border-destructive hover:text-destructive"
-                            onClick={() => setACancelar(f)}
-                            disabled={pendiente}
-                          >
-                            <Ban className="h-4 w-4" />
-                            Cancelar
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
+            <div>
+              <label className="label" htmlFor="filtro-pelicula">
+                Película
+              </label>
+              <select
+                id="filtro-pelicula"
+                className="field"
+                value={filtroPelicula}
+                onChange={(e) => setFiltroPelicula(e.target.value)}
+              >
+                <option value="">Todas las películas</option>
+                {peliculasListadas.map(([id, titulo]) => (
+                  <option key={id} value={String(id)}>
+                    {titulo}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-            {filtradas.length === 0 && (
-              <p className="px-4 py-6 text-sm text-muted-foreground">No hay funciones para mostrar.</p>
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="filtro-estado">
+                Estado
+              </label>
+              <select
+                id="filtro-estado"
+                className="field"
+                value={filtroEstado}
+                onChange={(e) => setFiltroEstado(e.target.value as FiltroEstado)}
+              >
+                <option value="">Todas</option>
+                <option value="activas">Activas</option>
+                <option value="canceladas">Canceladas</option>
+              </select>
+            </div>
+            {(filtroFecha || filtroPelicula || filtroEstado) && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  setFiltroFecha("");
+                  setFiltroPelicula("");
+                  setFiltroEstado("");
+                }}
+              >
+                Quitar filtros
+              </button>
             )}
           </div>
-        </section>
-      </div>
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setMensaje(null);
+              setFormulario("nueva");
+            }}
+          >
+            <Plus className="h-4 w-4" /> Nueva función
+          </button>
+        </div>
+
+        {mensaje && (
+          <p
+            role="status"
+            className={`mx-6 mb-4 rounded-md border px-4 py-2 text-sm ${
+              mensaje.ok
+                ? "border-border bg-surface-2 text-secondary"
+                : "border-destructive/50 bg-destructive/10 text-destructive"
+            }`}
+          >
+            {mensaje.texto}
+          </p>
+        )}
+
+        <div className="overflow-x-auto px-6 pb-6">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-surface-2 text-left uppercase tracking-wider text-muted-foreground">
+                <th className="px-4 py-3">Película</th>
+                <th className="px-4 py-3">Sala</th>
+                <th className="px-4 py-3">Fecha</th>
+                <th className="px-4 py-3">Hora</th>
+                <th className="px-4 py-3">Idioma</th>
+                <th className="px-4 py-3">Subtítulos</th>
+                <th className="px-4 py-3">Estado</th>
+                <th className="px-4 py-3">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtradas.map((f) => (
+                <tr
+                  key={f.id}
+                  className={`border-b border-border transition-colors hover:bg-surface-2/60 ${
+                    f.activa ? "" : "opacity-60"
+                  }`}
+                >
+                  <td className="px-4 py-3 font-semibold">{f.pelicula}</td>
+                  <td className="px-4 py-3">{f.sala}</td>
+                  <td className="px-4 py-3">{fechaCorta(f.fecha)}</td>
+                  <td className="px-4 py-3">{f.hora}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{f.idioma || "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{f.subtitulos ? "Sí" : "No"}</td>
+                  <td className="px-4 py-3 text-xs font-medium text-muted-foreground">
+                    {f.activa ? "Activa" : "Cancelada"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {f.activa && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="btn-ghost text-primary hover:border-primary hover:text-primary"
+                          onClick={() => {
+                            setMensaje(null);
+                            setFormulario(f);
+                          }}
+                          disabled={pendiente}
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-ghost text-destructive hover:border-destructive hover:text-destructive"
+                          onClick={() => setACancelar(f)}
+                          disabled={pendiente}
+                        >
+                          <Ban className="h-4 w-4" />
+                          Cancelar
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtradas.length === 0 && (
+            <p className="px-4 py-6 text-sm text-muted-foreground">
+              No hay funciones para mostrar.
+            </p>
+          )}
+        </div>
+      </section>
 
       {/* Nueva / editar función. `key` reinicia los valores por defecto al cambiar de función. */}
       <Modal
@@ -269,7 +280,12 @@ export function AdminFuncionesClient({
         onClose={cerrarFormulario}
         footer={
           <>
-            <button type="button" className="btn-ghost" onClick={cerrarFormulario} disabled={pendiente}>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={cerrarFormulario}
+              disabled={pendiente}
+            >
               Cancelar
             </button>
             <button type="submit" form="form-funcion" className="btn-primary" disabled={pendiente}>
@@ -285,7 +301,9 @@ export function AdminFuncionesClient({
           className="space-y-4"
         >
           <div>
-            <label className="label" htmlFor="idPelicula">Película</label>
+            <label className="label" htmlFor="idPelicula">
+              Película
+            </label>
             <select
               id="idPelicula"
               name="idPelicula"
@@ -304,7 +322,9 @@ export function AdminFuncionesClient({
             </select>
           </div>
           <div>
-            <label className="label" htmlFor="idSala">Sala</label>
+            <label className="label" htmlFor="idSala">
+              Sala
+            </label>
             <select
               id="idSala"
               name="idSala"
@@ -324,7 +344,9 @@ export function AdminFuncionesClient({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label" htmlFor="fecha">Fecha</label>
+              <label className="label" htmlFor="fecha">
+                Fecha
+              </label>
               <input
                 id="fecha"
                 name="fecha"
@@ -336,7 +358,9 @@ export function AdminFuncionesClient({
               />
             </div>
             <div>
-              <label className="label" htmlFor="hora">Hora</label>
+              <label className="label" htmlFor="hora">
+                Hora
+              </label>
               <input
                 id="hora"
                 name="hora"
@@ -349,7 +373,9 @@ export function AdminFuncionesClient({
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="label" htmlFor="idioma">Idioma</label>
+              <label className="label" htmlFor="idioma">
+                Idioma
+              </label>
               <select
                 id="idioma"
                 name="idioma"
@@ -396,12 +422,11 @@ export function AdminFuncionesClient({
         }
       >
         <p className="text-sm text-muted-foreground">
-          La función de{" "}
-          <span className="font-semibold text-foreground">{aCancelar?.pelicula}</span> en{" "}
-          {aCancelar?.sala} del {aCancelar && fechaCorta(aCancelar.fecha)} a las {aCancelar?.hora}{" "}
-          dejará de mostrarse en la cartelera. Esta acción no borra sus datos.
+          La función de <span className="font-semibold text-foreground">{aCancelar?.pelicula}</span>{" "}
+          en {aCancelar?.sala} del {aCancelar && fechaCorta(aCancelar.fecha)} a las{" "}
+          {aCancelar?.hora} dejará de mostrarse en la cartelera. Esta acción no borra sus datos.
         </p>
       </Modal>
-    </div>
+    </>
   );
 }

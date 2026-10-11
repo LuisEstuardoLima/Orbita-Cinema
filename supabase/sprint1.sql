@@ -14,7 +14,10 @@ alter table pelicula
 -- Baja definitiva del panel admin (botón "Eliminar"). No es lo mismo que `activa`:
 --   activa    -> controla la cartelera pública (interruptor de Estado del panel)
 --   eliminada -> oculta la película del listado del panel admin
--- El botón Eliminar pone `activa = false` y `eliminada = true`; el interruptor solo toca `activa`.
+-- El botón Eliminar pone `activa = false` y `eliminada = true` en la película, y además
+-- `activa = false` en todas sus funciones (cascada de estado, nunca DELETE: por auditoría y
+-- para no invalidar reservas/boletos ya emitidos). El interruptor solo toca `activa` de la
+-- película; reactivarla no reactiva sus funciones automáticamente.
 -- Nunca debe quedar `eliminada = true` con `activa = true`.
 alter table pelicula
   add column if not exists eliminada boolean not null default false;
