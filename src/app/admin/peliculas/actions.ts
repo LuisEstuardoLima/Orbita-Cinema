@@ -172,7 +172,15 @@ export async function cambiarEstadoPelicula(
  * A diferencia de `cambiarEstadoPelicula` (interruptor de Estado), esta acción marca también
  * `eliminada = true`, y `listPeliculasAdmin()` filtra esas filas: la película desaparece del
  * panel pero sigue existiendo en la base (referencias de funciones/reservas intactas).
- * `activa = false` además la saca de la cartelera pública, como cualquier otra baja.
+ * Las funciones de la película quedan desactivadas en cascada (`funcion.activa = false`) para
+ * que no sigan "vivas" con la película eliminada. Tampoco se borran filas: la baja es solo de
+ * estado, por auditoría (se recuperan con `select * from funcion where id_pelicula = X`), y así
+ * no se invalida ninguna reserva o boleto ya emitido. Reactivar la película más adelante NO
+ * reactiva sus funciones automáticamente: es decisión explícita del admin (ver README).
+ *
+ * El orden importa: primero las funciones y después la película. Si fallara lo segundo, la
+ * película seguirá visible en el panel y se puede reintentar (la acción es idempotente); al
+ * revés, la película quedaría oculta sin forma de reintentar desde la UI.
  */
 export async function eliminarPelicula(id: number): Promise<ActionResult> {
   const denied = await assertAdmin();
@@ -180,6 +188,18 @@ export async function eliminarPelicula(id: number): Promise<ActionResult> {
   if (!Number.isInteger(id) || id <= 0) return { ok: false, error: "Película inválida." };
 
   const admin = createAdminClient();
+
+  // Cascada sobre las funciones de la película: primero aquí para que un fallo deje la película
+  // visible en el panel y permita reintentar (la acción es idempotente). Solo baja de estado:
+  // las filas se conservan por auditoría y para no invalidar boletos ya emitidos.
+  const { error: errFunciones } = await admin
+    .from("funcion")
+    .update({ activa: false })
+    .eq("id_pelicula", id);
+  if (errFunciones) {
+    return { ok: false, error: `No se pudieron desactivar las funciones: ${errFunciones.message}` };
+  }
+
   const { data, error } = await admin
     .from("pelicula")
     .update({ activa: false, eliminada: true })

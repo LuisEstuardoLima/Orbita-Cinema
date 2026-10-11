@@ -9,8 +9,9 @@
  *
  * Decisión de diseño del Sprint 1 (SCRUM-106): la baja nunca es un DELETE. El interruptor de la
  * columna Estado solo cambia `activa` (la película sigue en el panel para poder reactivarla) y el
- * botón Eliminar marca `eliminada = true` para que `listPeliculasAdmin()` la saque del listado;
- * en ambos casos los datos siguen intactos en la base. Ver la nota en `actions.ts` y en el README.
+ * botón Eliminar marca `eliminada = true` para que `listPeliculasAdmin()` la saque del listado
+ * (y desactiva en cascada sus funciones); en ambos casos los datos siguen intactos en la base.
+ * Ver la nota en `actions.ts` y en el README.
  *
  * SCRUM-108: el mismo formulario sirve para registrar y para editar (`editando` decide el modo).
  *
@@ -474,8 +475,9 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
         </p>
       </Modal>
 
-      {/* Eliminar (columna Acciones): marca `eliminada = true` (y `activa = false`) en la base;
-          listPeliculasAdmin() filtra esas filas. La película no se borra, solo sale del panel. */}
+      {/* Eliminar (columna Acciones): marca `eliminada = true` (y `activa = false`) en la base y
+          desactiva en cascada sus funciones (`funcion.activa = false`); listPeliculasAdmin()
+          filtra esas filas. Nunca se borra nada: es una baja de estado, por auditoría. */}
       <Modal
         open={!!aEliminar}
         title="Eliminar película del panel"
@@ -492,9 +494,9 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
         }
       >
         <p className="text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">{aEliminar?.titulo}</span> Esta acción
-          eliminará la película del panel de administración y de la cartelera, además de todas sus
-          funciones.
+          <span className="font-semibold text-foreground">{aEliminar?.titulo}</span> se eliminará
+          del panel de administración y de la cartelera, y todas sus funciones programadas
+          quedarán desactivadas. Esta acción no se puede deshacer.
         </p>
       </Modal>
     </>

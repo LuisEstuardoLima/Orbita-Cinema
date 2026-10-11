@@ -89,7 +89,9 @@ Estas decisiones ya están tomadas. No volver a abrirlas sin revisarlas.
 
 **Al desactivar no se tocan las reservas ni los boletos ya emitidos.** Un boleto vendido es una promesa: la baja solo impide vender *nuevas* entradas, nunca invalida las anteriores.
 
-**Cuando exista el flujo de compra hay que validar `activa` al escribir, no solo al leer.** Ocultar la película de la cartelera no basta: alguien puede tener la pantalla de pago abierta cuando el admin la desactiva. Al crear la reserva y al confirmar el pago hay que releer `pelicula.activa` **y** `funcion.activa` contra la base y rechazar con un mensaje claro si ya no está disponible. Las funciones no se desactivan en cascada al dar de baja una película (el módulo de funciones aún no existe), por eso hay que revisar las dos.
+**Eliminar apaga las funciones de la película en cascada.** `eliminarPelicula` pone `funcion.activa = false` en todas las funciones de la película antes de marcar `eliminada = true`. Nunca es un DELETE: las filas se conservan por auditoría (se recuperan con `select * from funcion where id_pelicula = X`) y para no invalidar reservas o boletos ya emitidos. El orden de las escrituras es funciones → película, para que un fallo deje la película reintentable en el panel. Reactivar la película más adelante NO reactiva sus funciones automáticamente.
+
+**Cuando exista el flujo de compra hay que validar `activa` al escribir, no solo al leer.** Ocultar la película de la cartelera no basta: alguien puede tener la pantalla de pago abierta cuando el admin la desactiva. Al crear la reserva y al confirmar el pago hay que releer `pelicula.activa` **y** `funcion.activa` contra la base y rechazar con un mensaje claro si ya no está disponible. El interruptor de Estado (desactivar) no apaga las funciones en cascada: al reactivar la película, sus funciones siguen ahí. Por eso hay que releer las dos. En cambio, el botón Eliminar sí las apaga todas (ver arriba).
 
 **Registrar una película con el título de una que ya está activa se rechaza** (`crearPelicula`). Una película dada de baja sí admite una nueva con el mismo título, porque el objetivo es activar la existente.
 
