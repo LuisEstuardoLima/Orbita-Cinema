@@ -96,6 +96,12 @@
     @apply bg-primary text-primary-foreground hover:brightness-110 active:scale-[0.98];
     box-shadow: var(--shadow-glow);
   }
+  /* Igual que btn-primary pero en rojo: para acciones destructivas (Eliminar). */
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all duration-200 cursor-pointer;
+    @apply bg-destructive text-destructive-foreground hover:brightness-110 active:scale-[0.98];
+    box-shadow: 0 8px 24px -8px oklch(0.6 0.2 25 / 0.45);
+  }
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold uppercase tracking-wide transition-all duration-200 cursor-pointer;
     @apply border border-border bg-transparent text-foreground hover:border-primary hover:text-primary;

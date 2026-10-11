@@ -7,6 +7,7 @@ export type PeliculaRow = {
   genero: string | null;
   sinopsis: string | null;
   poster_url: string | null;
+  duracion_min: number | null; // minutos; lo agregó el equipo de funciones/salas
   director: string | null;
   actores: string | null;
   actor_principal: string | null; // columna que agregó sprint1.sql v1; se lee como respaldo de `actores`
