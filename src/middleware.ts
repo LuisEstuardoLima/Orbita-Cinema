@@ -54,8 +54,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  const rol = getRol(user);
-  if (rule.roles !== "any" && (!rol || !rule.roles.includes(rol))) {
+  const rol = await getRol(supabase, user.id); // BD: usuarios.id_rol -> rol.nombre (fuente única)
+  if (rule.roles !== "any" && !rule.roles.includes(rol)) {
     // No revelamos que el panel existe: se redirige a la cartelera.
     return NextResponse.redirect(new URL("/", request.url));
   }
