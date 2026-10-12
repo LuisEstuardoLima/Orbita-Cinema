@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { str, type SP } from "@/lib/search-params";
 import { LoginClient } from "./login-client";
 
 export const metadata: Metadata = {
@@ -10,6 +11,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function LoginPage() {
-  return <LoginClient />;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<SP> }) {
+  const sp = await searchParams;
+  // ?confirmado=1 (tras activar la cuenta) y ?reset=1 (tras cambiar la contraseña)
+  // muestran un banner de éxito.
+  return (
+    <LoginClient
+      confirmado={str(sp["confirmado"]) === "1"}
+      resetOk={str(sp["reset"]) === "1"}
+    />
+  );
 }
