@@ -92,7 +92,7 @@ Se eliminó lo específico de Lovable/Vite/Nitro (`server.ts`, `start.ts`, `rout
 
 ## Pendiente (según la documentación)
 
-`entradas`, `asientos` y `pago` siguen con datos estáticos de `cinema-data.ts` (sprints 3 y 4), así que al pulsar "Continuar" desde una película de la base de datos esas pantallas todavía muestran el encabezado de prueba. Faltan además: tablas `asiento`, `reserva`, `detalle_reserva`, `pago` y `boleto`, bloqueo temporal de 5 min, boleto PDF + QR, correo de confirmación, login/roles y los paneles de Colaborador y Administrador restantes.
+`entradas`, `asientos` y `pago` siguen con datos estáticos de `cinema-data.ts` (sprints 3 y 4), así que al pulsar "Continuar" desde una película de la base de datos esas pantallas todavía muestran el encabezado de prueba. Faltan además: tablas `reserva`, `detalle_reserva`, `pago` y `boleto`, bloqueo temporal de 5 min, boleto PDF + QR, correo de confirmación, login/roles y los paneles de Colaborador y Administrador restantes. (La tabla `asiento` —plano físico por sala— ya existe desde SCRUM-110; ver "Configuración de asientos" más abajo.)
 
 ## Decisiones sobre la baja de películas (leer antes de Sprint 3/4 y 7)
 
@@ -113,6 +113,38 @@ Estas decisiones ya están tomadas. No volver a abrirlas sin revisarlas.
 **Registrar una película con el título de una que ya está activa se rechaza** (`crearPelicula`). Una película dada de baja sí admite una nueva con el mismo título, porque el objetivo es activar la existente.
 
 **Editar el título y el slug.** El `slug` se genera solo al crear y es la URL pública (`/pelicula/[slug]`). Si el Sprint 7 permite cambiar el título, hay que decidir si el `slug` se recalcula: hacerlo sin más rompe los enlaces ya compartidos.
+
+## Configuración de asientos (SCRUM-110)
+
+**`asiento` es el plano FÍSICO de cada sala, no la venta.** Cada fila es un espacio de la sala (`fila` A..Z, `numero`, `estado`). El `estado` describe la naturaleza del espacio, no si está vendido:
+
+- `normal` = asiento real que se puede vender.
+- `pasillo` = pasillo, nunca es asiento.
+- `deshabilitado` = posición bloqueada o rota, no se vende.
+
+Un asiento **pertenece a la sala** (`id_sala` → `sala`), **no a una función**: es el mismo plano para todas las funciones de esa sala. (Esto corrige el diagrama ER inicial, donde `asiento` apuntaba a `funcion`.)
+
+**La capacidad se deriva de la distribución.** Cuando una sala ya tiene plano, `sala.capacidad` se recalcula sola como la cantidad de asientos `normal` (los pasillos y deshabilitados no cuentan) y el campo del formulario queda en solo lectura. Mientras la sala no tenga plano, la capacidad sigue siendo la que se escribe a mano.
+
+**No se re-configura el plano si la sala tiene funciones activas.** Guardar la distribución hace borrado + reinserción de todo el plano; hacerlo con una función futura activa podría mover o pasillizar un asiento ya implicado. El configurador queda en solo lectura con un aviso. (Es la versión actual de "ya tiene reservas" del ticket; cuando exista `reserva` se refina a "funciones con reservas".)
+
+## Capa de venta `reserva` — para el Sprint 3 (aún no existe)
+
+Anotado aquí para retomarlo, **sin crear la tabla todavía** porque sus reglas aún no están definidas.
+
+La disponibilidad real de un show **no se guarda en `asiento`**: se calcula restando. Para una función concreta:
+
+```
+disponibles = asientos de la sala con estado 'normal'
+              MENOS los que ya figuran en `reserva` de esa función
+```
+
+Antes de crear `reserva` hay dos cosas abiertas que aclarar con el ingeniero (ya se conversaron, quedan pendientes de confirmar):
+
+1. **El timing de compra / bloqueo temporal** (los ~5 min que separa "reservado" de "pagado"): cuánto dura una reserva y qué pasa si vence.
+2. **Qué ocurre si el admin desactiva la película o la función mientras alguien está pagando.** Hoy `pelicula.activa` / `funcion.activa` solo controlan la cartelera; cuando exista el flujo de compra hay que releer ambos al crear la reserva y al confirmar el pago (ver la nota de películas más arriba).
+
+La tabla tendrá al menos `id_funcion`, el `id_asiento` estable (el de la tabla física) y un `estado` de venta (`reservado | vendido | libre`), con un único `(id_funcion, id_asiento)` para no vender dos veces el mismo asiento en el mismo show. El detalle fino (`detalle_reserva`, `pago`, `boleto`) pertenece a los sprints 3 y 4.
 
 ## Optimización (pendiente, priorizado)
 
