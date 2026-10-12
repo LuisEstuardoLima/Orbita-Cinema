@@ -1,15 +1,18 @@
 /**
- * Configuración de asientos de una sala (SCRUM-110) — placeholder.
+ * Configuración de asientos de una sala (SCRUM-110).
  *
- * Existe para que el botón "Asientos" del listado de /admin/salas tenga una
- * ruta válida desde el primer momento. Aquí se definirán filas, columnas,
- * pasillos y asientos deshabilitados de la sala.
+ * Carga la sala, su distribución de asientos ya guardada (si tiene) y si la
+ * sala está bloqueada para editar (tiene funciones activas). Toda la lógica
+ * interactiva vive en el client; aquí solo se traen los datos del servidor.
  */
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import {
+  getDistribucionAsientos,
+  salaTieneFuncionesActivas,
+} from "@/lib/db/asientos";
 import { listSalasAdmin } from "@/lib/db/salas";
+import { AdminAsientosClient } from "./admin-asientos-client";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +20,8 @@ type Params = Promise<{ id: string }>;
 
 export const metadata: Metadata = {
   title: "Configurar asientos | Órbita Cinema",
-  description: "Panel de administración para la distribución de asientos de una sala.",
+  description:
+    "Panel de administración para la distribución de asientos de una sala.",
   robots: { index: false, follow: false },
 };
 
@@ -32,25 +36,17 @@ export default async function Page({ params }: { params: Params }) {
 
   if (!sala) notFound();
 
+  // Datos del plano y del bloqueo se leen en paralelo.
+  const [distribucion, bloqueada] = await Promise.all([
+    getDistribucionAsientos(idSala),
+    salaTieneFuncionesActivas(idSala),
+  ]);
+
   return (
-    <section className="card-surface p-6">
-      <h1 className="text-3xl tracking-wide">Configurar asientos — {sala.nombre}</h1>
-
-      <p className="mt-2 text-sm text-muted-foreground">
-        SCRUM-110 en construcción: aquí se definirán el número de filas y de asientos por
-        fila, los pasillos y los espacios deshabilitados de esta sala.
-      </p>
-
-      <div className="mt-6 flex items-center justify-between">
-        <Link href="/admin/salas" className="btn-ghost">
-          <ArrowLeft className="h-4 w-4" />
-          Volver a salas
-        </Link>
-
-        <span className="rounded-md bg-primary/15 px-2 py-1 text-xs font-bold text-primary">
-          {sala.tipo || "—"}
-        </span>
-      </div>
-    </section>
+    <AdminAsientosClient
+      sala={sala}
+      distribucion={distribucion}
+      bloqueada={bloqueada}
+    />
   );
 }

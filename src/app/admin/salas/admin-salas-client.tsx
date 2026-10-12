@@ -336,7 +336,13 @@ export function AdminSalasClient({
                   </td>
 
                   <td className="px-4 py-3 text-muted-foreground">
-                    {sala.capacidad}
+                    {!sala.capacidad ? (
+                      <span className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-600">
+                        Sin asientos configurados
+                      </span>
+                    ) : (
+                      sala.capacidad
+                    )}
                   </td>
 
                   {/* Estado: interruptor como en películas — encender activa directo
@@ -462,7 +468,7 @@ export function AdminSalasClient({
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div>
             <div>
               <label
                 className="label"
@@ -498,30 +504,12 @@ export function AdminSalasClient({
                   </option>
                 ))}
               </select>
-            </div>
 
-            <div>
-              <label
-                className="label"
-                htmlFor="capacidad"
-              >
-                Capacidad
-              </label>
-
-              <input
-                id="capacidad"
-                name="capacidad"
-                type="number"
-                inputMode="numeric"
-                min={1}
-                step={1}
-                className="field"
-                required
-                placeholder="120"
-                defaultValue={
-                  editando?.capacidad ?? ""
-                }
-              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                La capacidad se calcula sola al guardar la distribución del plano
+                de asientos. Una sala nueva queda en 0 (sin asientos
+                configurados) hasta ese momento.
+              </p>
             </div>
           </div>
 

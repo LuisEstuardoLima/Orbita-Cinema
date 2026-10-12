@@ -12,6 +12,10 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { assertAdmin } from "@/lib/auth/guard";
 import { contarSalasActivas } from "@/lib/db/salas";
+import {
+  salaTieneFuncionesActivas,
+  type EstadoAsiento,
+} from "@/lib/db/asientos";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SalaRow } from "@/lib/db-types";
 
@@ -35,7 +39,7 @@ const TIPOS_SALA = [
  *
  * - nombre obligatorio
  * - tipo obligatorio y limitado a los definidos en la historia
- * - capacidad entera y mayor que cero
+ * (la capacidad no se pide: se deriva de la distribución de asientos)
  */
 const schema = z.object({
   nombre: z
@@ -49,14 +53,10 @@ const schema = z.object({
       message: "Elige un tipo de sala válido.",
     }),
   }),
-
-  capacidad: z.coerce
-    .number({
-      invalid_type_error: "La capacidad debe ser un número.",
-    })
-    .int("La capacidad debe ser un número entero.")
-    .positive("La capacidad debe ser mayor que cero."),
 });
+
+// Nota: la capacidad NO se pide aquí. Se deriva de la distribución de
+// asientos (SCRUM-110) al guardar el plano en el configurador.
 
 type DatosSala = z.infer<typeof schema>;
 
@@ -82,7 +82,6 @@ function validarFormulario(
   const parsed = schema.safeParse({
     nombre: campo(formData, "nombre"),
     tipo: campo(formData, "tipo"),
-    capacidad: campo(formData, "capacidad"),
   });
 
   if (!parsed.success) {
@@ -157,14 +156,17 @@ export async function crearSala(
     };
   }
 
-  const { nombre, tipo, capacidad } = validacion.datos;
+  const { nombre, tipo } = validacion.datos;
 
+  // Opción A: una sala nueva siempre nace sin asientos (capacidad 0).
+  // La capacidad real se recalcula al guardar el plano en
+  // `guardarDistribucionAsientos` (único lugar que la actualiza).
   const { error } = await createAdminClient()
     .from("sala")
     .insert({
       nombre,
       tipo_sala: tipo,
-      capacidad,
+      capacidad: 0,
       activa: true,
     });
 
@@ -234,14 +236,13 @@ export async function editarSala(
     };
   }
 
-  const { nombre, tipo, capacidad } = validacion.datos;
+  const { nombre, tipo } = validacion.datos;
 
   const { error } = await admin
     .from("sala")
     .update({
       nombre,
       tipo_sala: tipo,
-      capacidad,
     })
     .eq("id", id);
 
@@ -425,6 +426,161 @@ export async function activarSala(
   }
 
   revalidarSalas();
+
+  return { ok: true };
+}
+
+/* =====================================================================
+ * SCRUM-110: configuración de asientos de una sala.
+ *
+ * Guarda el plano físico completo (filas × columnas) de una sala. Cada
+ * celda queda en la tabla `asiento` con estado normal | pasillo |
+ * deshabilitado. Es un borrado + reinserción de todo el plano, así que
+ * solo se permite cuando la sala NO tiene funciones activas (para no
+ * invalidar asientos de una función futura).
+ *
+ * Al terminar, recalcula `sala.capacidad` = cantidad de asientos "normal"
+ * (los pasillos y deshabilitados no cuentan), que es lo que pide el
+ * criterio 4 del ticket. Mientras la sala no tenga plano, la capacidad
+ * sigue siendo la que se escribió a mano en el formulario de sala.
+ * ===================================================================== */
+
+/** Letra de fila a partir del índice 0-based: 0 -> "A", 25 -> "Z". */
+const letraFila = (indice: number) => String.fromCharCode(65 + indice);
+
+const MAX_FILAS = 14; // A..N
+const MAX_COLUMNAS = 25;
+/** Capacidad máxima por sala (regla de negocio del proyecto). */
+const CAPACIDAD_MAXIMA = 200;
+
+export async function guardarDistribucionAsientos(input: {
+  idSala: number;
+  filas: number;
+  columnas: number;
+  /** estado por celda, indexado por `${fila}-${numero}` (fila ya en letra). */
+  celdas: Record<string, EstadoAsiento>;
+}): Promise<ActionResult> {
+  const denied = await assertAdmin();
+
+  if (denied) {
+    return { ok: false, error: denied };
+  }
+
+  const { idSala, filas, columnas, celdas } = input;
+
+  if (!Number.isInteger(idSala) || idSala <= 0) {
+    return { ok: false, error: "Sala inválida." };
+  }
+
+  if (
+    !Number.isInteger(filas) ||
+    !Number.isInteger(columnas) ||
+    filas < 1 ||
+    filas > MAX_FILAS ||
+    columnas < 1 ||
+    columnas > MAX_COLUMNAS
+  ) {
+    return {
+      ok: false,
+      error: `La cuadrícula debe tener entre 1 y ${MAX_FILAS} filas y entre 1 y ${MAX_COLUMNAS} columnas.`,
+    };
+  }
+
+  const admin = createAdminClient();
+
+  // La sala debe existir.
+  const { data: sala, error: lecturaError } = await admin
+    .from("sala")
+    .select("id, nombre")
+    .eq("id", idSala)
+    .maybeSingle();
+
+  if (lecturaError) {
+    return {
+      ok: false,
+      error: `No se pudo consultar la sala: ${lecturaError.message}`,
+    };
+  }
+
+  if (!sala) {
+    return { ok: false, error: "La sala no existe." };
+  }
+
+  // Regla: no se re-configura el plano si la sala tiene funciones activas.
+  const tieneFunciones = await salaTieneFuncionesActivas(idSala);
+
+  if (tieneFunciones) {
+    return {
+      ok: false,
+      error:
+        "Esta sala tiene funciones activas. Cancélalas o desactívalas antes de modificar la distribución.",
+    };
+  }
+
+  // Construye el plano completo a partir de la cuadrícula recibida.
+  const plano: Array<{
+    id_sala: number;
+    fila: string;
+    numero: number;
+    estado: EstadoAsiento;
+  }> = [];
+
+  for (let f = 0; f < filas; f++) {
+    const letra = letraFila(f);
+
+    for (let n = 1; n <= columnas; n++) {
+      const estado = celdas[`${letra}-${n}`] ?? "normal";
+      plano.push({ id_sala: idSala, fila: letra, numero: n, estado });
+    }
+  }
+
+  // Recalcula la capacidad = cantidad de asientos "normal".
+  const disponibles = plano.filter((a) => a.estado === "normal").length;
+
+  // Regla de negocio: el límite de 200 es sobre asientos disponibles.
+  if (disponibles > CAPACIDAD_MAXIMA) {
+    return {
+      ok: false,
+      error: `La sala no permite más de ${CAPACIDAD_MAXIMA} asientos disponibles (hay ${disponibles}).`,
+    };
+  }
+
+  // Borra el plano anterior y escribe el nuevo (borrado + reinserción).
+  const { error: borradoError } = await admin
+    .from("asiento")
+    .delete()
+    .eq("id_sala", idSala);
+
+  if (borradoError) {
+    return {
+      ok: false,
+      error: `No se pudo limpiar la distribución anterior: ${borradoError.message}`,
+    };
+  }
+
+  const { error: insercionError } = await admin.from("asiento").insert(plano);
+
+  if (insercionError) {
+    return {
+      ok: false,
+      error: `No se pudo guardar la distribución: ${insercionError.message}`,
+    };
+  }
+
+  const { error: capacidadError } = await admin
+    .from("sala")
+    .update({ capacidad: disponibles })
+    .eq("id", idSala);
+
+  if (capacidadError) {
+    return {
+      ok: false,
+      error: `No se pudo actualizar la capacidad: ${capacidadError.message}`,
+    };
+  }
+
+  revalidarSalas();
+  revalidatePath(`/admin/salas/${idSala}/asientos`);
 
   return { ok: true };
 }

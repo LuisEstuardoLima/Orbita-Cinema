@@ -12,9 +12,13 @@ import type { SalaRow } from "@/lib/db-types";
 export type SalaAdmin = {
   id: number;
   nombre: string;
-  capacidad: number;
+  // Opción A: derivada de la distribución de asientos (SCRUM-110).
+  // 0 o NULL = sala sin plano configurado (se muestra "Sin asientos configurados").
+  capacidad: number | null;
   tipo: string;
   activa: boolean;
+  /** true si la sala ya tiene un plano de asientos guardado (SCRUM-110). */
+  tieneAsientos: boolean;
 };
 
 /**
@@ -31,26 +35,46 @@ const ordenNatural = new Intl.Collator("es", {
 /**
  * Lista todas las salas para el panel administrativo,
  * ordenadas por nombre de forma natural (Sala 1, Sala 2, … Sala 10).
+ * Además marca qué salas ya tienen un plano de asientos guardado
+ * (`tieneAsientos`). Opción A: la capacidad nunca es manual, solo se deriva
+ * de la distribución (SCRUM-110); 0 o NULL = sin plano.
  */
 export async function listSalasAdmin(): Promise<SalaAdmin[]> {
   const admin = createAdminClient();
 
-  const { data, error } = await admin
-    .from("sala")
-    .select("id, nombre, capacidad, tipo_sala, activa")
-    .order("id");
+  const [salas, conAsientos] = await Promise.all([
+    admin
+      .from("sala")
+      .select("id, nombre, capacidad, tipo_sala, activa")
+      .order("id"),
+    // Ids de sala que ya tienen al menos un asiento guardado.
+    admin.from("asiento").select("id_sala"),
+  ]);
 
-  if (error) {
-    throw new Error(`sala: ${error.message}`);
+  if (salas.error) {
+    throw new Error(`sala: ${salas.error}`);
   }
 
-  return (data as SalaRow[])
+  const idsConAsientos = new Set(
+    // Si la tabla `asiento` todavía no existe (migración de SCRUM-110 aún
+    // no corrida por alguien del equipo), degradamos con elegancia: ninguna
+    // sala se marca con plano y la capacidad sigue siendo manual. Así el
+    // panel no se cae para quien aún no aplicó el SQL.
+    conAsientos.error
+      ? []
+      : (conAsientos.data ?? []).map(
+          (a) => (a as { id_sala: number }).id_sala,
+        ),
+  );
+
+  return (salas.data as SalaRow[])
     .map((s) => ({
       id: s.id,
       nombre: s.nombre,
       capacidad: s.capacidad,
       tipo: s.tipo_sala ?? "",
       activa: s.activa ?? false,
+      tieneAsientos: idsConAsientos.has(s.id),
     }))
     .sort((a, b) => ordenNatural.compare(a.nombre, b.nombre));
 }
