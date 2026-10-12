@@ -115,6 +115,7 @@
     box-shadow: var(--shadow-card);
   }
   .field {
+    color-scheme: dark;
     @apply w-full rounded-lg border border-input bg-background/60 px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary;
   }
   .label {
@@ -129,4 +130,29 @@
   .section-title {
     @apply text-2xl font-normal tracking-wide text-foreground;
   }
+}
+
+/* ── Timepicker (timepicker-ui): tema "dark" repintado con la paleta del proyecto ──
+   La librería pone data-theme="dark" en su modal y trae variables --tp-* (morado por
+   defecto). Aquí se sobrescriben a naranja #FFA21F y a las superficies oscuras del
+   sitio. El selector va duplicado para ganarle en especificidad al CSS de la librería,
+   y fuera de @layer para que no lo pise el cascade de capas de Tailwind. */
+[data-theme="dark"][data-theme="dark"] {
+  --tp-bg: #1c1c1c;
+  --tp-surface: #2e2e2e;
+  --tp-surface-hover: #404040;
+  --tp-input-bg: #2e2e2e;
+  --tp-primary: #ffa21f;
+  --tp-on-primary: #1f1f1f;
+  --tp-primary-container: #ffa21f;
+  --tp-on-primary-container: #1f1f1f;
+  --tp-tertiary-container: #ffa21f;
+  --tp-on-tertiary-container: #1f1f1f;
+  --tp-am-pm-active: #ffa21f;
+  --tp-am-pm-text-selected: #1f1f1f;
+  --tp-outline: #ffa21f;
+  --tp-hover-bg: #404040;
+  --tp-dropdown-option-bg: #2e2e2e;
+  --tp-wheel-highlight-bg: rgba(255, 162, 31, 0.14);
+  --tp-wheel-selected-color: #ffa21f;
 }

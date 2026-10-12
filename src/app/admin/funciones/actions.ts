@@ -41,6 +41,7 @@ const schema = z.object({
   hora: z
     .string({ required_error: "La hora es obligatoria." })
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "La hora no es válida."),
+  // La hora llega de dos selects (minutos de 5 en 5); aquí solo se valida el formato.
   idioma: z.enum(IDIOMAS_FILTRO, { errorMap: () => ({ message: "Elige un idioma." }) }),
   subtitulos: z.boolean(),
 });

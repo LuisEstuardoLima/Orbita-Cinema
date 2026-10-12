@@ -18,8 +18,19 @@ export type SalaAdmin = {
 };
 
 /**
- * Lista todas las salas para el panel administrativo.
- * Las activas se muestran primero y luego se ordenan por nombre.
+ * Orden natural por nombre: compara los números como números, así que
+ * "Sala 2" queda antes que "Sala 10" (el orden alfabético simple de SQL
+ * las intercambiaría). Se hace con Intl.Collator para no depender de la
+ * colación de la base.
+ */
+const ordenNatural = new Intl.Collator("es", {
+  numeric: true,
+  sensitivity: "base",
+});
+
+/**
+ * Lista todas las salas para el panel administrativo,
+ * ordenadas por nombre de forma natural (Sala 1, Sala 2, … Sala 10).
  */
 export async function listSalasAdmin(): Promise<SalaAdmin[]> {
   const admin = createAdminClient();
@@ -27,20 +38,21 @@ export async function listSalasAdmin(): Promise<SalaAdmin[]> {
   const { data, error } = await admin
     .from("sala")
     .select("id, nombre, capacidad, tipo_sala, activa")
-    .order("activa", { ascending: false })
-    .order("nombre");
+    .order("id");
 
   if (error) {
     throw new Error(`sala: ${error.message}`);
   }
 
-  return (data as SalaRow[]).map((s) => ({
-    id: s.id,
-    nombre: s.nombre,
-    capacidad: s.capacidad,
-    tipo: s.tipo_sala ?? "",
-    activa: s.activa ?? false,
-  }));
+  return (data as SalaRow[])
+    .map((s) => ({
+      id: s.id,
+      nombre: s.nombre,
+      capacidad: s.capacidad,
+      tipo: s.tipo_sala ?? "",
+      activa: s.activa ?? false,
+    }))
+    .sort((a, b) => ordenNatural.compare(a.nombre, b.nombre));
 }
 
 /**

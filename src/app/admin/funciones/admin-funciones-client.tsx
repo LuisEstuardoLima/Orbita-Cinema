@@ -4,24 +4,65 @@
  * Gestión de funciones — la parte que corre en el NAVEGADOR (SCRUM-111).
  *
  * Recibe las funciones desde hoy (activas y canceladas) y las opciones del formulario. Los
- * filtros por fecha y película son locales, como el buscador de `/admin/peliculas`. Para guardar
+ * filtros por fecha, película y estado son locales, como el buscador de `/admin/peliculas`. Para guardar
  * llama a las Server Actions de `./actions`, que repiten todas las validaciones en el servidor.
  *
  * Se muestra dentro del layout común del panel (SCRUM-112), que ya pone encabezado y menú.
  */
 import { useState, useTransition, type FormEvent } from "react";
 import { format } from "date-fns";
-import { Ban, Pencil, Plus } from "lucide-react";
+import { es } from "date-fns/locale";
+import { Ban, CalendarDays, Clock, Pencil, Plus } from "lucide-react";
 import { Modal } from "@/components/cinema/Modal";
+import { Calendar } from "@/components/ui/calendar";
+import type { TimepickerOptions } from "timepicker-ui";
+import { Timepicker } from "timepicker-ui-react";
+import "timepicker-ui/main.css";
+import "timepicker-ui/theme-dark.css";
 import { IDIOMAS_FILTRO, idiomaGrupo } from "@/lib/cartelera";
 import type { FuncionAdmin, OpcionPelicula, OpcionSala } from "@/lib/db/funciones";
-import { parseFecha } from "@/lib/fechas";
+import { parseFecha, toFecha } from "@/lib/fechas";
 import { cancelarFuncion, crearFuncion, editarFuncion } from "./actions";
 
-/** Filtro de la columna Estado: "" = Todas. */
-type FiltroEstado = "" | "activas" | "canceladas";
+/** Filtro de la columna Estado: "" = Todas. "Finalizada" se calcula en el navegador. */
+type FiltroEstado = "" | "activas" | "canceladas" | "finalizadas";
 
 const fechaCorta = (fecha: string) => format(parseFecha(fecha), "dd/MM/yyyy");
+
+/**
+ * Reloj emergente del campo Hora (timepicker-ui): minutos solo de 5 en 5 y
+ * formato 12h. El tema "dark" se repinta con la paleta del proyecto en `globals.css`.
+ */
+const OPCIONES_TIMEPICKER: TimepickerOptions = {
+  clock: { type: "12h", incrementMinutes: 5, autoSwitchToMinutes: true },
+  ui: { theme: "dark", editable: false },
+  labels: { time: "Elegir hora", ok: "Aceptar", cancel: "Cancelar", am: "AM", pm: "PM" },
+};
+
+/** "14:30" (lo que guarda la base) → "02:30 PM" (lo que muestra el input de 12h). */
+const aFormato12 = (hora: string) => {
+  const [hh, mm] = hora.split(":");
+  const n = Number(hh);
+  return `${String(n % 12 === 0 ? 12 : n % 12).padStart(2, "0")}:${mm} ${n < 12 ? "AM" : "PM"}`;
+};
+
+/** El dato confirmado por el reloj (hour, minutes, type) → "14:30" para la base. */
+const aFormato24 = (hour?: string, minutes?: string, type?: string) => {
+  if (!hour || !minutes) return "";
+  const ampm = (type ?? "AM").trim();
+  let h = Number(hour);
+  if (ampm === "PM" && h !== 12) h += 12;
+  if (ampm === "AM" && h === 12) h = 0;
+  return `${String(h).padStart(2, "0")}:${String(Number(minutes)).padStart(2, "0")}`;
+};
+
+/**
+ * true si la función (fecha + hora) ya empezó, en hora de Guatemala.
+ * "Finalizada" NO se guarda en la base: se calcula aquí para no tener que
+ * recorrer filas actualizando estados cada minuto.
+ */
+const yaFinalizo = (fecha: string, hora: string, hoy: string, horaAhora: string) =>
+  fecha < hoy || (fecha === hoy && hora.slice(0, 5) <= horaAhora.slice(0, 5));
 
 /** Idioma a preseleccionar al editar: "Español Latino" -> "Español", para guardarlo normalizado. */
 const idiomaFormulario = (idioma: string) => {
@@ -49,15 +90,34 @@ export function AdminFuncionesClient({
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<{ texto: string; ok: boolean } | null>(null);
   const [pendiente, startTransition] = useTransition();
+  // Película elegida en el formulario (para mostrar su duración). null = sin tocar.
+  const [peliculaElegida, setPeliculaElegida] = useState<string | null>(null);
+  // Calendario estilo cartelera: "filtro" filtra el listado; "form" es la fecha de la función.
+  const [calendario, setCalendario] = useState<"filtro" | "form" | null>(null);
+  const [fechaTmp, setFechaTmp] = useState("");
+  const [fechaForm, setFechaForm] = useState("");
+  // Hora del formulario en 24h ("HH:MM"), armada por los dos selects de hora y minutos.
+  const [horaForm, setHoraForm] = useState("");
 
   const editando = formulario && formulario !== "nueva" ? formulario : null;
 
-  const filtradas = funciones.filter(
-    (f) =>
-      (!filtroFecha || f.fecha === filtroFecha) &&
-      (!filtroPelicula || String(f.idPelicula) === filtroPelicula) &&
-      (!filtroEstado || f.activa === (filtroEstado === "activas")),
-  );
+  // Hora actual de Guatemala (el servidor la pasa como `hoy`; la hora se deriva aquí).
+  const ahoraGT = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString().slice(11, 16);
+
+  const estadoDe = (f: FuncionAdmin): "activa" | "cancelada" | "finalizada" =>
+    !f.activa ? "cancelada" : yaFinalizo(f.fecha, f.hora, hoy, ahoraGT) ? "finalizada" : "activa";
+
+  const filtradas = funciones.filter((f) => {
+    if (filtroFecha && f.fecha !== filtroFecha) return false;
+    if (filtroPelicula && String(f.idPelicula) !== filtroPelicula) return false;
+    if (!filtroEstado) return true;
+    const estado = estadoDe(f);
+    return filtroEstado === "activas"
+      ? estado === "activa"
+      : filtroEstado === "canceladas"
+        ? estado === "cancelada"
+        : estado === "finalizada";
+  });
 
   // Para el filtro: todas las películas que tienen funciones listadas (aunque ya estén inactivas).
   const peliculasListadas = [
@@ -68,11 +128,32 @@ export function AdminFuncionesClient({
 
   const cerrarFormulario = () => {
     setFormulario(null);
+    setPeliculaElegida(null);
+    setFechaForm("");
+    setHoraForm("");
     setError(null);
+  };
+
+  /** Abre el calendario compacto (el mismo `Calendar` de la cartelera) para filtrar o para el form. */
+  const abrirCalendario = (destino: "filtro" | "form", actual: string) => {
+    setFechaTmp(actual || hoy);
+    setCalendario(destino);
+  };
+
+  const confirmarCalendario = () => {
+    if (fechaTmp) {
+      if (calendario === "filtro") setFiltroFecha(fechaTmp);
+      else setFechaForm(fechaTmp);
+    }
+    setCalendario(null);
   };
 
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!horaForm) {
+      setError("Elige una hora para la función.");
+      return;
+    }
     const datos = new FormData(e.currentTarget);
     setError(null);
     startTransition(async () => {
@@ -122,14 +203,15 @@ export function AdminFuncionesClient({
               <label className="label" htmlFor="filtro-fecha">
                 Fecha
               </label>
-              <input
+              <button
                 id="filtro-fecha"
-                type="date"
-                className="field"
-                min={hoy}
-                value={filtroFecha}
-                onChange={(e) => setFiltroFecha(e.target.value)}
-              />
+                type="button"
+                className="field inline-flex cursor-pointer items-center gap-2 text-left"
+                onClick={() => abrirCalendario("filtro", filtroFecha)}
+              >
+                <CalendarDays className="h-4 w-4 text-primary" />
+                {filtroFecha ? fechaCorta(filtroFecha) : "Todas las fechas"}
+              </button>
             </div>
             <div>
               <label className="label" htmlFor="filtro-pelicula">
@@ -162,6 +244,7 @@ export function AdminFuncionesClient({
                 <option value="">Todas</option>
                 <option value="activas">Activas</option>
                 <option value="canceladas">Canceladas</option>
+                <option value="finalizadas">Finalizadas</option>
               </select>
             </div>
             {(filtroFecha || filtroPelicula || filtroEstado) && (
@@ -182,6 +265,8 @@ export function AdminFuncionesClient({
             className="btn-primary"
             onClick={() => {
               setMensaje(null);
+              setFechaForm(hoy);
+              setHoraForm("");
               setFormulario("nueva");
             }}
           >
@@ -231,16 +316,22 @@ export function AdminFuncionesClient({
                   <td className="px-4 py-3 text-muted-foreground">{f.idioma || "—"}</td>
                   <td className="px-4 py-3 text-muted-foreground">{f.subtitulos ? "Sí" : "No"}</td>
                   <td className="px-4 py-3 text-xs font-medium text-muted-foreground">
-                    {f.activa ? "Activa" : "Cancelada"}
+                    {estadoDe(f) === "activa"
+                      ? "Activa"
+                      : estadoDe(f) === "finalizada"
+                        ? "Finalizada"
+                        : "Cancelada"}
                   </td>
                   <td className="px-4 py-3">
-                    {f.activa && (
+                    {estadoDe(f) === "activa" && (
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           className="btn-ghost text-primary hover:border-primary hover:text-primary"
                           onClick={() => {
                             setMensaje(null);
+                            setFechaForm(f.fecha);
+                            setHoraForm(f.hora);
                             setFormulario(f);
                           }}
                           disabled={pendiente}
@@ -310,6 +401,7 @@ export function AdminFuncionesClient({
               className="field"
               required
               defaultValue={editando?.idPelicula != null ? String(editando.idPelicula) : ""}
+              onChange={(e) => setPeliculaElegida(e.target.value)}
             >
               <option value="" disabled>
                 Elige una película
@@ -320,6 +412,20 @@ export function AdminFuncionesClient({
                 </option>
               ))}
             </select>
+            {(peliculaElegida ?? (editando ? String(editando.idPelicula) : "")) !== "" && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {(() => {
+                  const sel = peliculas.find(
+                    (p) =>
+                      String(p.id) ===
+                      (peliculaElegida ?? (editando ? String(editando.idPelicula) : "")),
+                  );
+                  return sel?.duracion != null
+                    ? `Duración: ${sel.duracion} min (más 15 min de limpieza entre funciones).`
+                    : "Esta película no tiene duración registrada.";
+                })()}
+              </p>
+            )}
           </div>
           <div>
             <label className="label" htmlFor="idSala">
@@ -347,28 +453,38 @@ export function AdminFuncionesClient({
               <label className="label" htmlFor="fecha">
                 Fecha
               </label>
-              <input
+              <button
                 id="fecha"
-                name="fecha"
-                type="date"
-                className="field"
-                required
-                min={hoy}
-                defaultValue={editando?.fecha ?? ""}
-              />
+                type="button"
+                className="field inline-flex cursor-pointer items-center gap-2 text-left"
+                onClick={() => abrirCalendario("form", fechaForm)}
+              >
+                <CalendarDays className="h-4 w-4 text-primary" />
+                {fechaForm ? fechaCorta(fechaForm) : "Elegir fecha"}
+              </button>
+              <input type="hidden" name="fecha" value={fechaForm} readOnly />
             </div>
             <div>
-              <label className="label" htmlFor="hora">
+              <label className="label" htmlFor="hora-timepicker">
                 Hora
               </label>
-              <input
-                id="hora"
-                name="hora"
-                type="time"
-                className="field"
-                required
-                defaultValue={editando?.hora ?? ""}
-              />
+              {/* Ancho fijo (no todo la celda) + ícono de reloj, como el de calendario en Fecha. */}
+              <div className="relative w-52">
+                <Timepicker
+                  id="hora-timepicker"
+                  className="field pr-10 cursor-pointer"
+                  placeholder="Elegir hora"
+                  required
+                  defaultValue={horaForm ? aFormato12(horaForm) : ""}
+                  options={OPCIONES_TIMEPICKER}
+                  onConfirm={(data) => {
+                    const nueva = aFormato24(data.hour, data.minutes, data.type);
+                    if (nueva) setHoraForm(nueva);
+                  }}
+                />
+                <Clock className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
+              </div>
+              <input type="hidden" name="hora" value={horaForm} readOnly />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -426,6 +542,44 @@ export function AdminFuncionesClient({
           en {aCancelar?.sala} del {aCancelar && fechaCorta(aCancelar.fecha)} a las{" "}
           {aCancelar?.hora} dejará de mostrarse en la cartelera. Esta acción no borra sus datos.
         </p>
+      </Modal>
+
+      {/* Calendario compacto: el mismo `Calendar` de la cartelera, en un modal del panel.
+          Va al final del JSX para quedar encima de los otros modales. */}
+      <Modal
+        open={calendario !== null}
+        title="Elegir fecha"
+        onClose={() => setCalendario(null)}
+        footer={
+          <>
+            {calendario === "filtro" && filtroFecha && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => {
+                  setFiltroFecha("");
+                  setCalendario(null);
+                }}
+              >
+                Quitar fecha
+              </button>
+            )}
+            <button type="button" className="btn-primary" onClick={confirmarCalendario}>
+              OK
+            </button>
+          </>
+        }
+      >
+        <div className="flex justify-center">
+          <Calendar
+            mode="single"
+            locale={es}
+            selected={fechaTmp ? parseFecha(fechaTmp) : undefined}
+            onSelect={(d) => setFechaTmp(d ? toFecha(d) : fechaTmp)}
+            defaultMonth={parseFecha(fechaTmp || hoy)}
+            disabled={{ before: parseFecha(hoy) }}
+          />
+        </div>
       </Modal>
     </>
   );

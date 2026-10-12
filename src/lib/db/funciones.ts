@@ -31,7 +31,7 @@ export type FuncionAdmin = {
   activa: boolean;
 };
 
-export type OpcionPelicula = { id: number; titulo: string };
+export type OpcionPelicula = { id: number; titulo: string; duracion: number | null };
 export type OpcionSala = { id: number; nombre: string; tipo: string };
 
 /** Listado del panel: funciones desde hoy (activas y canceladas), por fecha y hora. */
@@ -81,7 +81,7 @@ export async function listOpcionesFuncion(): Promise<{
   const [pel, sal] = await Promise.all([
     admin
       .from("pelicula")
-      .select("id, titulo")
+      .select("id, titulo, duracion_min")
       .eq("activa", true)
       .eq("eliminada", false)
       .order("titulo"),
@@ -91,7 +91,11 @@ export async function listOpcionesFuncion(): Promise<{
   if (sal.error) throw new Error(`sala: ${sal.error.message}`);
 
   return {
-    peliculas: pel.data as OpcionPelicula[],
+    peliculas: (pel.data as Pick<PeliculaRow, "id" | "titulo" | "duracion_min">[]).map((p) => ({
+      id: p.id,
+      titulo: p.titulo,
+      duracion: p.duracion_min,
+    })),
     salas: (sal.data as Pick<SalaRow, "id" | "nombre" | "tipo_sala">[]).map((s) => ({
       id: s.id,
       nombre: s.nombre,

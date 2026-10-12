@@ -53,6 +53,8 @@
         "server-only": "^0.0.1",
         "sonner": "^2.0.7",
         "tailwind-merge": "^3.5.0",
+        "timepicker-ui": "^4.4.0",
+        "timepicker-ui-react": "^1.4.0",
         "vaul": "^1.1.2",
         "zod": "^3.25.76",
       },
@@ -1098,6 +1100,10 @@
     "tailwindcss": ["tailwindcss@4.3.3", "", {}, "sha512-gOhV3P7ufE62QDGg1zVaTgCR+EtPv92k2nIhVcVKcLmxT1sUBsQGhnZj175j+MqRt4zLF7ic+sCYjfhxMxj7YQ=="],
 
     "tapable": ["tapable@2.3.3", "", {}, "sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A=="],
+
+    "timepicker-ui": ["timepicker-ui@4.4.0", "", {}, "sha512-+ncFBnZYrBxk8viJ6eZv2jZ5UeMnVuxtOBecHZBxpE+zgn9zpZsStXLcYVDAvBPnECIEcQJwvZ60s6/qEt08jQ=="],
+
+    "timepicker-ui-react": ["timepicker-ui-react@1.4.0", "", { "dependencies": { "timepicker-ui": "4.4.0" }, "peerDependencies": { "react": ">=17", "react-dom": ">=17" } }, "sha512-oRz2N3R+6no5o7WUhNVsxumLRAAyhn/f3Bw7J15LlhveNUCUm+1JP0zK8yLe1AueKnhAkP8zxO277CnBzHbrBQ=="],
 
     "tiny-invariant": ["tiny-invariant@1.3.3", "", {}, "sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg=="],
 

@@ -10,11 +10,14 @@
  */
 
 import { useState, useTransition, type FormEvent } from "react";
-import { Ban, Pencil, Plus, Search } from "lucide-react";
+import { Armchair, Pencil, Plus, Search } from "lucide-react";
+import Link from "next/link";
 
 import { Modal } from "@/components/cinema/Modal";
+import { Switch } from "@/components/ui/switch";
 import type { SalaAdmin } from "@/lib/db/salas";
 import {
+  activarSala,
   crearSala,
   desactivarSala,
   editarSala,
@@ -23,10 +26,14 @@ import {
 type FiltroEstado = "" | "activas" | "inactivas";
 
 const TIPOS_SALA = [
-  "IMAX",
-  "MACRO XE",
-  "VIP",
-  "TRADICIONAL",
+  "TRADICIONAL 2D",
+  "TRADICIONAL 3D",
+  "IMAX 2D",
+  "IMAX 3D",
+  "MACRO XE 2D",
+  "MACRO XE 3D",
+  "VIP 2D",
+  "VIP 3D",
 ] as const;
 
 /**
@@ -125,6 +132,31 @@ export function AdminSalasClient({
       } else {
         setError(res.error);
       }
+    });
+  };
+
+  /**
+   * Activar es directo y sin confirmar: la sala ya está a la vista en el panel
+   * (mismo criterio que el interruptor de películas). El servidor vuelve a
+   * validar el límite de 10 salas activas.
+   */
+  const activar = (sala: SalaAdmin) => {
+    setMensaje(null);
+
+    startTransition(async () => {
+      const res = await activarSala(sala.id);
+
+      setMensaje(
+        res.ok
+          ? {
+              texto: `"${sala.nombre}" fue activada correctamente.`,
+              ok: true,
+            }
+          : {
+              texto: res.error,
+              ok: false,
+            },
+      );
     });
   };
 
@@ -269,6 +301,10 @@ export function AdminSalasClient({
                 <th className="px-4 py-3">
                   Acciones
                 </th>
+
+                <th className="px-4 py-3">
+                  Asientos
+                </th>
               </tr>
             </thead>
 
@@ -303,50 +339,51 @@ export function AdminSalasClient({
                     {sala.capacidad}
                   </td>
 
+                  {/* Estado: interruptor como en películas — encender activa directo
+                      (sin confirmar); apagar abre el modal de desactivación. */}
                   <td className="px-4 py-3">
-                    <span
-                      className={`text-xs font-medium ${
-                        sala.activa
-                          ? "text-secondary"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {sala.activa
-                        ? "Activa"
-                        : "Inactiva"}
-                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <Switch
+                        checked={sala.activa}
+                        disabled={pendiente}
+                        onCheckedChange={(v) => (v ? activar(sala) : setADesactivar(sala))}
+                        id={`activa-${sala.id}`}
+                      />
+                      <label
+                        htmlFor={`activa-${sala.id}`}
+                        className="cursor-pointer text-xs font-medium text-muted-foreground"
+                      >
+                        {sala.activa ? "Activa" : "Inactiva"}
+                      </label>
+                    </div>
                   </td>
 
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        onClick={() => {
-                          setMensaje(null);
-                          setError(null);
-                          setFormulario(sala);
-                        }}
-                        disabled={pendiente}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        Editar
-                      </button>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => {
+                        setMensaje(null);
+                        setError(null);
+                        setFormulario(sala);
+                      }}
+                      disabled={pendiente}
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Editar
+                    </button>
+                  </td>
 
-                      {sala.activa && (
-                        <button
-                          type="button"
-                          className="btn-danger"
-                          onClick={() =>
-                            setADesactivar(sala)
-                          }
-                          disabled={pendiente}
-                        >
-                          <Ban className="h-4 w-4" />
-                          Desactivar
-                        </button>
-                      )}
-                    </div>
+                  {/* SCRUM-110: acceso a la configuración de asientos de la sala. */}
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/admin/salas/${sala.id}/asientos`}
+                      className="btn-ghost text-primary hover:border-primary hover:text-primary"
+                      title="Configurar los asientos de la sala"
+                    >
+                      <Armchair className="h-4 w-4" />
+                      Asientos
+                    </Link>
                   </td>
                 </tr>
               ))}
@@ -544,8 +581,8 @@ export function AdminSalasClient({
         </p>
 
         <p className="mt-3 text-sm text-muted-foreground">
-          La sala y sus funciones existentes no se
-          eliminarán de la base de datos.
+          Sus funciones programadas dejarán de mostrarse en la cartelera mientras
+          la sala esté desactivada.
         </p>
       </Modal>
     </>

@@ -3,7 +3,7 @@
 /**
  * SCRUM-109: Server Actions de /admin/salas.
  *
- * Solo un Administrador puede crear, editar o desactivar salas.
+ * Solo un Administrador puede crear, editar, desactivar o reactivar salas.
  * Las reglas de negocio se validan nuevamente en el servidor aunque
  * el formulario también tenga validaciones en el navegador.
  */
@@ -20,10 +20,14 @@ export type ActionResult =
   | { ok: false; error: string };
 
 const TIPOS_SALA = [
-  "IMAX",
-  "MACRO XE",
-  "VIP",
-  "TRADICIONAL",
+  "TRADICIONAL 2D",
+  "TRADICIONAL 3D",
+  "IMAX 2D",
+  "IMAX 3D",
+  "MACRO XE 2D",
+  "MACRO XE 3D",
+  "VIP 2D",
+  "VIP 3D",
 ] as const;
 
 /**
@@ -324,6 +328,99 @@ export async function desactivarSala(
     return {
       ok: false,
       error: `No se pudo desactivar la sala: ${error.message}`,
+    };
+  }
+
+  revalidarSalas();
+
+  return { ok: true };
+}
+
+/**
+ * SCRUM-109: reactivar una sala (interruptor de Estado del panel).
+ *
+ * Camino inverso de `desactivarSala`: la fila nunca se borró, solo estaba
+ * apagada, así que vuelve a estar disponible para funciones nuevas. El límite
+ * de 10 salas activas también aplica aquí: con 10 activas no se reactiva.
+ */
+export async function activarSala(
+  id: number,
+): Promise<ActionResult> {
+  const denied = await assertAdmin();
+
+  if (denied) {
+    return {
+      ok: false,
+      error: denied,
+    };
+  }
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return {
+      ok: false,
+      error: "Sala inválida.",
+    };
+  }
+
+  const admin = createAdminClient();
+
+  const { data, error: lecturaError } = await admin
+    .from("sala")
+    .select("id, nombre, activa")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (lecturaError) {
+    return {
+      ok: false,
+      error: `No se pudo consultar la sala: ${lecturaError.message}`,
+    };
+  }
+
+  const sala = data as Pick<
+    SalaRow,
+    "id" | "nombre" | "activa"
+  > | null;
+
+  if (!sala) {
+    return {
+      ok: false,
+      error: "La sala no existe.",
+    };
+  }
+
+  if (sala.activa) {
+    return {
+      ok: false,
+      error: "La sala ya está activa.",
+    };
+  }
+
+  /*
+   * Mismo límite que al crear: 10 salas activas como máximo. Otro
+   * administrador pudo haber llenado el cupo mientras esta sala estaba
+   * apagada, así que se vuelve a contar en el servidor.
+   */
+  const activas = await contarSalasActivas();
+
+  if (activas >= 10) {
+    return {
+      ok: false,
+      error: "Se alcanzó el máximo de 10 salas activas.",
+    };
+  }
+
+  const { error } = await admin
+    .from("sala")
+    .update({
+      activa: true,
+    })
+    .eq("id", id);
+
+  if (error) {
+    return {
+      ok: false,
+      error: `No se pudo activar la sala: ${error.message}`,
     };
   }
 
