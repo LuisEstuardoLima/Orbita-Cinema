@@ -12,6 +12,7 @@ import { getRol, type Rol } from "@/lib/roles";
  */
 const RULES: { prefix: string; roles: Rol[] | "any" }[] = [
   { prefix: "/admin/peliculas", roles: ["Administrador"] },
+  { prefix: "/admin/salas", roles: ["Administrador"] },
   { prefix: "/admin", roles: ["Colaborador", "Administrador"] },
   { prefix: "/perfil", roles: "any" },
 ];

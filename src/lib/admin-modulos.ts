@@ -44,7 +44,7 @@ export const MODULOS_ADMIN: ModuloAdmin[] = [
     nombre: "Salas y asientos",
     descripcion: "Gestionar salas, su capacidad y la distribución de asientos.",
     icono: DoorOpen,
-    disponible: false,
+    disponible: true,
   },
   {
     href: "/admin/reportes",
