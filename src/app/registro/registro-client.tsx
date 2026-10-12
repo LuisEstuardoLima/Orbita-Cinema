@@ -6,6 +6,7 @@ import Link from "next/link";
 
 export function RegistroClient() {
   const [error, setError] = useState<string>("");
+  const [emailEnviado, setEmailEnviado] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -31,10 +32,15 @@ export function RegistroClient() {
     // Enviar datos al servidor
     startTransition(async () => {
       const response = await registrarCliente(formData);
-      // Si la Server Action devuelve un error (ej. correo duplicado - Criterio 3)
+      // Si la Server Action devuelve un error
       if (response?.error) {
         setError(response.error);
+        return;
       }
+      // Registro OK: el correo de confirmación fue enviado.
+      // (Si el correo ya existiera, Supabase responde igual y mostramos
+      // el mismo mensaje genérico para no revelar eso.)
+      setEmailEnviado(formData.get("email") as string);
     });
   };
 
@@ -43,13 +49,29 @@ export function RegistroClient() {
       <div className="card-surface w-full max-w-md p-8 rounded-xl">
         <h1 className="text-3xl tracking-wide mb-6 text-center">Crear cuenta</h1>
         
-        {error && (
-          <div className="bg-destructive/10 border border-destructive text-destructive p-3 rounded-md mb-4 text-sm text-center">
-            {error}
-          </div>
-        )}
+        {emailEnviado ? (
+          <>
+            <div className="border border-primary/40 bg-primary/10 p-4 rounded-md mb-4 text-sm text-center">
+              ¡Listo! Te enviamos un correo a{" "}
+              <span className="font-semibold">{emailEnviado}</span> para confirmar
+              tu registro. Haz clic en el enlace para activar tu cuenta.
+            </div>
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              ¿Ya tienes cuenta?{" "}
+              <Link href="/login" className="text-primary hover:underline">
+                Inicia sesión aquí
+              </Link>
+            </p>
+          </>
+        ) : (
+          <>
+            {error && (
+              <div className="bg-destructive/10 border border-destructive text-destructive p-3 rounded-md mb-4 text-sm text-center">
+                {error}
+              </div>
+            )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label" htmlFor="nombre">Nombre</label>
@@ -88,14 +110,18 @@ export function RegistroClient() {
           >
             {isPending ? "Registrando..." : "Registrarme"}
           </button>
-        </form>
+          </form>
+          </>
+        )}
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          ¿Ya tienes cuenta?{" "}
-          <Link href="/login" className="text-primary hover:underline">
-            Inicia sesión aquí
-          </Link>
-        </p>
+        {!emailEnviado && (
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            ¿Ya tienes cuenta?{" "}
+            <Link href="/login" className="text-primary hover:underline">
+              Inicia sesión aquí
+            </Link>
+          </p>
+        )}
       </div>
     </div>
   );
