@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getRol, type Rol } from "@/lib/roles";
+import { COOKIE_SESION_TEMPORAL, sinPersistencia } from "@/lib/supabase/sesion";
 
 /**
  * Control de acceso por rol (RNF-006 / RNF-015).
@@ -25,6 +26,8 @@ export async function middleware(request: NextRequest) {
   if (!url || !key) return NextResponse.next();
 
   let response = NextResponse.next({ request });
+  // "Recordarme" desactivado: las cookies de sesión que renueve el middleware no deben persistir.
+  const temporal = request.cookies.get(COOKIE_SESION_TEMPORAL)?.value === "1";
 
   const supabase = createServerClient(url, key, {
     cookies: {
@@ -35,7 +38,7 @@ export async function middleware(request: NextRequest) {
         cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
         response = NextResponse.next({ request });
         cookiesToSet.forEach(({ name, value, options }) =>
-          response.cookies.set(name, value, options),
+          response.cookies.set(name, value, sinPersistencia(options, temporal)),
         );
       },
     },

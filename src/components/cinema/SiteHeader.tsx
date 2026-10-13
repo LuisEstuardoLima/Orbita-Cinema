@@ -88,9 +88,9 @@ export function SiteHeader() {
                 <span className="hidden sm:inline font-semibold">Hola, {nombreUsuario}</span>
               </Link>
               <form action={cerrarSesion}>
-                <button type="submit" className="px-4 py-2 text-sm flex items-center gap-2 text-muted-foreground hover:text-destructive transition-colors">
+                <button type="submit" aria-label="Cerrar sesión" className="px-4 py-2 text-sm flex items-center gap-2 text-muted-foreground hover:text-destructive transition-colors">
                   <LogOut className="h-5 w-5" />
-                  <span className="hidden sm:inline">Salir</span>
+                  <span className="hidden sm:inline">Cerrar sesión</span>
                 </button>
               </form>
             </>

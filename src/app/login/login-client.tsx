@@ -10,9 +10,11 @@ type Props = {
   confirmado?: boolean;
   /** true cuando llegamos tras cambiar la contraseña con éxito (?reset=1). */
   resetOk?: boolean;
+  /** Ruta a la que volver tras iniciar sesión (la pone el middleware en ?next=). */
+  next?: string;
 };
 
-export function LoginClient({ confirmado = false, resetOk = false }: Props) {
+export function LoginClient({ confirmado = false, resetOk = false, next = "" }: Props) {
   const [error, setError] = useState<string>("");
   const [resetMensaje, setResetMensaje] = useState<string>("");
   // "login" = form normal; "olvido" = pantalla dedicada que solo pide el correo.
@@ -145,6 +147,7 @@ export function LoginClient({ confirmado = false, resetOk = false }: Props) {
           )
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            <input type="hidden" name="next" value={next} />
             <div>
               <label className="label" htmlFor="email">Correo Electrónico:</label>
               <input type="email" id="email" name="email" className="field" placeholder="correo@ejemplo.com" required />
@@ -154,7 +157,7 @@ export function LoginClient({ confirmado = false, resetOk = false }: Props) {
               <input type="password" id="password" name="password" className="field" placeholder="••••••••" required />
             </div>
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input type="checkbox" defaultChecked className="h-4 w-4 accent-[var(--primary)]" />
+              <input type="checkbox" name="recordarme" defaultChecked className="h-4 w-4 accent-[var(--primary)]" />
               Recordarme
             </label>
 

@@ -3,7 +3,16 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache"; // <-- 1. Importamos revalidatePath
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { getRol, type Rol } from "@/lib/roles";
+import { COOKIE_SESION_TEMPORAL, rutaInterna } from "@/lib/supabase/sesion";
+
+/** Panel de inicio de cada rol tras iniciar sesión (SCRUM-115). El Cliente va a la cartelera. */
+const INICIO_POR_ROL: Record<Rol, string> = {
+  Administrador: "/admin",
+  Colaborador: "/admin/funciones",
+  Cliente: "/",
+};
 
 /**
  * Origen actual (protocolo + host) para los redirects de Supabase Auth
@@ -63,32 +72,53 @@ export async function registrarCliente(
 export async function cerrarSesion() {
   const supabase = await createClient();
   await supabase.auth.signOut();
-  
-  // 3. Limpiamos la caché global antes de redirigir al login
-  revalidatePath('/', 'layout');
-  redirect("/login");
+
+  // La marca de "Recordarme" desactivado también se borra con la sesión.
+  (await cookies()).delete(COOKIE_SESION_TEMPORAL);
+
+  // Limpiamos la caché global y volvemos a la cartelera.
+  revalidatePath("/", "layout");
+  redirect("/");
 }
 
 
+/**
+ * SCRUM-115: inicio de sesión de los tres roles.
+ *
+ * - Credenciales inválidas: mensaje genérico, sin decir si falló el correo o la contraseña.
+ * - "Recordarme" (checkbox `recordarme`): marcado = sesión persistente; sin marcar = la sesión
+ *   termina al cerrar el navegador (ver `lib/supabase/sesion.ts`).
+ * - Destino: `?next=` si es una ruta interna; si no, el panel del rol (Administrador -> /admin,
+ *   Colaborador -> /admin/funciones, Cliente -> cartelera). El rol sale de la BD (`getRol`).
+ */
 export async function iniciarSesion(formData: FormData) {
-  const email = formData.get("email") as string;
-  const password = formData.get("password") as string;
+  const email = String(formData.get("email") ?? "").trim();
+  const password = String(formData.get("password") ?? "");
+  const recordarme = formData.get("recordarme") === "on";
 
-  const supabase = await createClient();
+  // La marca va ANTES del login: así las cookies de sesión que crea Supabase nacen temporales.
+  const cookieStore = await cookies();
+  if (recordarme) {
+    cookieStore.delete(COOKIE_SESION_TEMPORAL);
+  } else {
+    cookieStore.set(COOKIE_SESION_TEMPORAL, "1", { path: "/", sameSite: "lax" });
+  }
 
-  // Función nativa de Supabase para iniciar sesión
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const supabase = await createClient({ sesionTemporal: !recordarme });
 
-  if (error) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+  if (error || !data.user) {
+    cookieStore.delete(COOKIE_SESION_TEMPORAL);
     return { error: "Correo o contraseña incorrectos" };
   }
 
+  const rol = await getRol(supabase, data.user.id);
+  const destino = rutaInterna(formData.get("next")) ?? INICIO_POR_ROL[rol];
+
   // Limpiamos la caché global y redirigimos
-  revalidatePath('/', 'layout');
-  redirect("/");
+  revalidatePath("/", "layout");
+  redirect(destino);
 }
 
 /**

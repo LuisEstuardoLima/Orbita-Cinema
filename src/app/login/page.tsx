@@ -19,6 +19,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <LoginClient
       confirmado={str(sp["confirmado"]) === "1"}
       resetOk={str(sp["reset"]) === "1"}
+      next={str(sp["next"])}
     />
   );
 }
