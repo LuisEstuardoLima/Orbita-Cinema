@@ -73,12 +73,17 @@ const etiquetaLeyenda: Record<Estado, string> = {
 export function AdminAsientosClient({
   sala,
   distribucion,
-  bloqueada,
+  bloqueada: bloqueadaPorFunciones,
+  soloLectura = false,
 }: {
   sala: SalaAdmin;
   distribucion: AsientoRow[];
   bloqueada: boolean;
+  /** Colaborador (SCRUM-116): ve el plano de asientos pero no puede modificarlo ni guardarlo. */
+  soloLectura?: boolean;
 }) {
+  // La cuadrícula ya sabe quedar en solo lectura (`bloqueada`); el Colaborador usa el mismo modo.
+  const bloqueada = bloqueadaPorFunciones || soloLectura;
   // Dimensiones iniciales: si ya hay plano guardado, se derivan de él;
   // si no, se parte de una cuadrícula de ejemplo.
   const inicial = useMemo(() => {
@@ -310,15 +315,25 @@ export function AdminAsientosClient({
       </div>
 
       {/* Aviso cuando la sala está bloqueada por tener funciones activas */}
-      {bloqueada && (
+      {soloLectura ? (
         <p
-          role="alert"
+          role="note"
           className="mt-4 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
         >
-          Esta sala tiene funciones activas, por lo que su distribución está
-          en solo lectura. Cancelar o desactivar esas funciones antes de
-          modificar los asientos.
+          Modo consulta: tu rol (Colaborador) puede ver la distribución de asientos, pero no
+          modificarla.
         </p>
+      ) : (
+        bloqueadaPorFunciones && (
+          <p
+            role="alert"
+            className="mt-4 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+          >
+            Esta sala tiene funciones activas, por lo que su distribución está
+            en solo lectura. Cancelar o desactivar esas funciones antes de
+            modificar los asientos.
+          </p>
+        )
       )}
 
       {/* Controles de dimensiones */}
@@ -510,15 +525,17 @@ export function AdminAsientosClient({
           {filas * columnas}
         </p>
 
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={guardar}
-          disabled={pendiente || bloqueada}
-        >
-          <Save className="h-4 w-4" />
-          {pendiente ? "Guardando..." : "Guardar distribución"}
-        </button>
+        {!soloLectura && (
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={guardar}
+            disabled={pendiente || bloqueada}
+          >
+            <Save className="h-4 w-4" />
+            {pendiente ? "Guardando..." : "Guardar distribución"}
+          </button>
+        )}
       </div>
 
       {error && (

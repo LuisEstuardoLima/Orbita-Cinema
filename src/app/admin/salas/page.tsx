@@ -8,8 +8,8 @@
  * Acceso: solo Administrador.
  */
 import type { Metadata } from "next";
-import { exigirRol } from "@/lib/auth/pagina";
-import { ROLES_ADMIN } from "@/lib/permisos";
+import { esSoloLectura, exigirRol } from "@/lib/auth/pagina";
+import { ROLES_PANEL } from "@/lib/permisos";
 import { listSalasAdmin } from "@/lib/db/salas";
 import { AdminSalasClient } from "./admin-salas-client";
 
@@ -27,8 +27,8 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  await exigirRol(ROLES_ADMIN, "/admin/salas");
+  await exigirRol(ROLES_PANEL, "/admin/salas");
   const salas = await listSalasAdmin();
 
-  return <AdminSalasClient salas={salas} />;
+  return <AdminSalasClient salas={salas} soloLectura={await esSoloLectura("/admin/salas")} />;
 }

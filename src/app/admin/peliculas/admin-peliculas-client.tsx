@@ -30,7 +30,14 @@ import { actualizarPelicula, cambiarEstadoPelicula, crearPelicula, eliminarPelic
 const opciones = (lista: readonly string[], actual: string | null | undefined) =>
   actual && !lista.includes(actual) ? [actual, ...lista] : [...lista];
 
-export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }) {
+export function AdminPeliculasClient({
+  peliculas,
+  soloLectura = false,
+}: {
+  peliculas: PeliculaRow[];
+  /** Colaborador (SCRUM-116): ve el listado pero no puede registrar, editar, dar de baja ni eliminar. */
+  soloLectura?: boolean;
+}) {
   const [creando, setCreando] = useState(false);
   const [editando, setEditando] = useState<PeliculaRow | null>(null);
   const [aDesactivar, setADesactivar] = useState<PeliculaRow | null>(null);
@@ -165,10 +172,21 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
               onChange={(e) => setBusqueda(e.target.value)}
             />
           </div>
-          <button className="btn-primary" onClick={() => setCreando(true)}>
-            <Plus className="h-4 w-4" /> Registrar nueva película
-          </button>
+          {!soloLectura && (
+            <button className="btn-primary" onClick={() => setCreando(true)}>
+              <Plus className="h-4 w-4" /> Registrar nueva película
+            </button>
+          )}
         </div>
+
+        {soloLectura && (
+          <p
+            role="note"
+            className="mx-6 mb-4 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+          >
+            Modo consulta: tu rol (Colaborador) puede ver esta información, pero no crearla ni modificarla.
+          </p>
+        )}
 
         {mensaje && (
           <p
@@ -231,7 +249,7 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                     <div className="flex items-center gap-2.5">
                       <Switch
                         checked={m.activa}
-                        disabled={pendiente}
+                        disabled={pendiente || soloLectura}
                         onCheckedChange={(v) => (v ? activar(m) : setADesactivar(m))}
                         id={`activa-${m.id}`}
                       />
@@ -244,6 +262,9 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                     </div>
                   </td>
                   <td className="px-4 py-3">
+                    {soloLectura ? (
+                      <span className="text-xs text-muted-foreground">Solo consulta</span>
+                    ) : (
                     <div className="flex items-center gap-2">
                       {/* Editar (SCRUM-108): solo con la película desactivada. El botón se ve igual
                           siempre; si está activa, `abrirEdicion` avisa en vez de abrir el formulario
@@ -268,6 +289,7 @@ export function AdminPeliculasClient({ peliculas }: { peliculas: PeliculaRow[] }
                         Eliminar
                       </button>
                     </div>
+                    )}
                   </td>
                 </tr>
               ))}

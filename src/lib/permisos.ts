@@ -12,9 +12,14 @@
  * | Sitio público, compra, /perfil |    ✔    |      ✔      |       ✔       |
  * | /admin (inicio del panel)      |         |      ✔      |       ✔       |
  * | /admin/funciones               |         |      ✔      |       ✔       |
- * | /admin/peliculas               |         |             |       ✔       |
- * | /admin/salas (y asientos)      |         |             |       ✔       |
+ * | /admin/peliculas               |         |   consulta  |       ✔       |
+ * | /admin/salas (y asientos)      |         |   consulta  |       ✔       |
  * | /admin/reportes, /admin/usuarios (próximos) |   |      |       ✔       |
+ *
+ * "consulta" = el Colaborador puede ENTRAR y ver la información, pero no crear, editar, dar de
+ * baja ni activar/desactivar nada (ver `puedeModificar`). Las Server Actions de esos módulos
+ * siguen exigiendo Administrador, así que aunque alguien intente modificar sin pasar por la
+ * pantalla, el servidor lo rechaza.
  *
  * Para proteger un módulo nuevo: agregar su regla aquí ANTES de `/admin`, y su `href` en
  * `lib/admin-modulos.ts` (el menú se filtra solo).
@@ -30,8 +35,8 @@ export type ReglaRuta = { prefix: string; roles: readonly Rol[] | "cualquiera" }
 
 /** Orden importa: la primera que coincida gana, así que las rutas específicas van antes que /admin. */
 export const REGLAS_RUTA: readonly ReglaRuta[] = [
-  { prefix: "/admin/peliculas", roles: ROLES_ADMIN },
-  { prefix: "/admin/salas", roles: ROLES_ADMIN },
+  { prefix: "/admin/peliculas", roles: ROLES_PANEL }, // Colaborador: solo consulta
+  { prefix: "/admin/salas", roles: ROLES_PANEL }, // Colaborador: solo consulta (incluye asientos)
   { prefix: "/admin/reportes", roles: ROLES_ADMIN },
   { prefix: "/admin/usuarios", roles: ROLES_ADMIN },
   { prefix: "/admin/funciones", roles: ROLES_PANEL },
@@ -48,6 +53,23 @@ export function reglaDeRuta(ruta: string): ReglaRuta | undefined {
 export function puedeAcceder(rol: Rol, ruta: string): boolean {
   const regla = reglaDeRuta(ruta);
   if (!regla) return true;
+  return regla.roles === "cualquiera" || regla.roles.includes(rol);
+}
+
+/**
+ * Quién puede MODIFICAR (crear, editar, dar de baja, activar/desactivar) en cada módulo.
+ * Un rol que puede entrar pero no está aquí ve el módulo en modo consulta.
+ */
+const MODIFICAR: readonly ReglaRuta[] = [
+  { prefix: "/admin/peliculas", roles: ROLES_ADMIN },
+  { prefix: "/admin/salas", roles: ROLES_ADMIN },
+  { prefix: "/admin/funciones", roles: ROLES_PANEL },
+];
+
+/** ¿Puede este rol crear/modificar en el módulo de la ruta? */
+export function puedeModificar(rol: Rol, ruta: string): boolean {
+  const regla = MODIFICAR.find((r) => ruta === r.prefix || ruta.startsWith(`${r.prefix}/`));
+  if (!regla) return false;
   return regla.roles === "cualquiera" || regla.roles.includes(rol);
 }
 

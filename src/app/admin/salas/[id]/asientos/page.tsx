@@ -7,8 +7,8 @@
  */
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { exigirRol } from "@/lib/auth/pagina";
-import { ROLES_ADMIN } from "@/lib/permisos";
+import { esSoloLectura, exigirRol } from "@/lib/auth/pagina";
+import { ROLES_PANEL } from "@/lib/permisos";
 import {
   getDistribucionAsientos,
   salaTieneFuncionesActivas,
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page({ params }: { params: Params }) {
-  await exigirRol(ROLES_ADMIN, "/admin/salas");
+  await exigirRol(ROLES_PANEL, "/admin/salas");
   const { id } = await params;
   const idSala = Number(id);
 
@@ -50,6 +50,7 @@ export default async function Page({ params }: { params: Params }) {
       sala={sala}
       distribucion={distribucion}
       bloqueada={bloqueada}
+      soloLectura={await esSoloLectura("/admin/salas")}
     />
   );
 }

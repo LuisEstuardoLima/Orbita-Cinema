@@ -50,8 +50,10 @@ La matriz de permisos vive en **`src/lib/permisos.ts`** (única fuente de verdad
 | Sitio público, compra, `/perfil` | ✔ | ✔ | ✔ |
 | `/admin` (inicio del panel) | | ✔ | ✔ |
 | `/admin/funciones` | | ✔ | ✔ |
-| `/admin/peliculas` | | | ✔ |
-| `/admin/salas` (y asientos) | | | ✔ |
+| `/admin/peliculas` | | consulta | ✔ |
+| `/admin/salas` (y asientos) | | consulta | ✔ |
+
+**Consulta** = el Colaborador entra y ve la información (listado de películas, salas y plano de asientos), pero no ve los botones de crear, editar, dar de baja, eliminar ni activar/desactivar, y el plano de asientos no se puede modificar. Es solo la parte visual (`esSoloLectura` / `puedeModificar` en `lib/permisos.ts`); quien rechaza de verdad es el servidor: las acciones de películas y salas siguen exigiendo Administrador.
 
 Se aplica en cuatro capas, todas con la misma matriz y el rol leído de la BD (`usuarios.id_rol`), nunca del navegador:
 1. **Middleware** (`src/middleware.ts`): sin sesión → `/login?next=...`; con sesión sin permiso → `/acceso-denegado`.

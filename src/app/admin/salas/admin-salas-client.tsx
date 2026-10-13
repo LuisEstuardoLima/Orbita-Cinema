@@ -51,8 +51,11 @@ const opcionesTipo = (
 
 export function AdminSalasClient({
   salas,
+  soloLectura = false,
 }: {
   salas: SalaAdmin[];
+  /** Colaborador (SCRUM-116): ve las salas pero no puede crearlas, editarlas ni cambiar su estado. */
+  soloLectura?: boolean;
 }) {
   const [formulario, setFormulario] =
     useState<SalaAdmin | "nueva" | null>(null);
@@ -239,20 +242,31 @@ export function AdminSalasClient({
             </select>
           </div>
 
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => {
-              setMensaje(null);
-              setError(null);
-              setFormulario("nueva");
-            }}
-            disabled={pendiente}
-          >
-            <Plus className="h-4 w-4" />
-            Nueva sala
-          </button>
+          {!soloLectura && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                setMensaje(null);
+                setError(null);
+                setFormulario("nueva");
+              }}
+              disabled={pendiente}
+            >
+              <Plus className="h-4 w-4" />
+              Nueva sala
+            </button>
+          )}
         </div>
+
+        {soloLectura && (
+          <p
+            role="note"
+            className="mx-6 mb-4 rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground"
+          >
+            Modo consulta: tu rol (Colaborador) puede ver esta información, pero no crearla ni modificarla.
+          </p>
+        )}
 
         {/* Mensajes */}
         {mensaje && (
@@ -351,7 +365,7 @@ export function AdminSalasClient({
                     <div className="flex items-center gap-2.5">
                       <Switch
                         checked={sala.activa}
-                        disabled={pendiente}
+                        disabled={pendiente || soloLectura}
                         onCheckedChange={(v) => (v ? activar(sala) : setADesactivar(sala))}
                         id={`activa-${sala.id}`}
                       />
@@ -365,19 +379,23 @@ export function AdminSalasClient({
                   </td>
 
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={() => {
-                        setMensaje(null);
-                        setError(null);
-                        setFormulario(sala);
-                      }}
-                      disabled={pendiente}
-                    >
-                      <Pencil className="h-4 w-4" />
-                      Editar
-                    </button>
+                    {soloLectura ? (
+                      <span className="text-xs text-muted-foreground">Solo consulta</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={() => {
+                          setMensaje(null);
+                          setError(null);
+                          setFormulario(sala);
+                        }}
+                        disabled={pendiente}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Editar
+                      </button>
+                    )}
                   </td>
 
                   {/* SCRUM-110: acceso a la configuración de asientos de la sala. */}
@@ -385,10 +403,10 @@ export function AdminSalasClient({
                     <Link
                       href={`/admin/salas/${sala.id}/asientos`}
                       className="btn-ghost text-primary hover:border-primary hover:text-primary"
-                      title="Configurar los asientos de la sala"
+                      title={soloLectura ? "Ver los asientos de la sala" : "Configurar los asientos de la sala"}
                     >
                       <Armchair className="h-4 w-4" />
-                      Asientos
+                      {soloLectura ? "Ver asientos" : "Asientos"}
                     </Link>
                   </td>
                 </tr>
