@@ -11,9 +11,10 @@
  */
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CircleUserRound, ExternalLink, Film } from "lucide-react";
+import { CircleUserRound, ExternalLink, Film, LogOut } from "lucide-react";
 import { AdminNav } from "@/components/admin/AdminNav";
 import { getPerfilActual } from "@/lib/auth/perfil";
+import { cerrarSesion } from "@/lib/auth/actions";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -55,6 +56,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 "Sin sesión"
               )}
             </span>
+            {perfil && (
+              <form action={cerrarSesion}>
+                <button type="submit" aria-label="Cerrar sesión" className="px-4 py-2 text-sm flex items-center gap-2 text-muted-foreground hover:text-destructive transition-colors cursor-pointer">
+                  <LogOut className="h-5 w-5" />
+                  <span className="hidden sm:inline">Cerrar sesión</span>
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </header>

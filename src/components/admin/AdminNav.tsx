@@ -1,33 +1,24 @@
 "use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { INICIO_ADMIN, MODULOS_ADMIN, esActivo } from "@/lib/admin-modulos";
 import { puedeAcceder } from "@/lib/permisos";
 import type { Rol } from "@/lib/roles";
 
-/**
- * Menú del panel (SCRUM-112). Vive en `admin/layout.tsx`, que no se vuelve a montar al navegar
- * entre módulos: por eso el menú se mantiene visible y solo cambia el módulo marcado.
- * En pantallas angostas se convierte en una fila con scroll horizontal.
- */
 export function AdminNav({ rol }: { rol: Rol | null }) {
   const pathname = usePathname();
-  // Cada rol solo ve los módulos a los que puede entrar (SCRUM-116). Sin rol (AUTH_GUARD=off,
-  // desarrollo sin login) se muestran todos.
-  const visibles = [INICIO_ADMIN, ...MODULOS_ADMIN].filter((m) => rol === null || puedeAcceder(rol, m.href));
+  const visibles = [INICIO_ADMIN, ...MODULOS_ADMIN].filter((m) =>
+    rol === null || puedeAcceder(rol, m.href)
+  );
 
   return (
     <nav aria-label="Módulos del panel" className="card-surface overflow-hidden lg:h-fit">
-      <h2 className="hidden border-b border-border px-5 py-4 text-2xl tracking-wide lg:block">
-        Navegación
-      </h2>
+      <h2 className="hidden border-b border-border px-5 py-4 text-2xl tracking-wide lg:block">Navegación</h2>
       <ul className="flex overflow-x-auto lg:block lg:overflow-visible">
         {visibles.map((m) => {
           const Icono = m.icono;
           const activo = esActivo(m.href, pathname);
-          const base =
-            "flex w-full items-center gap-3 whitespace-nowrap border-b-4 px-5 py-3 text-sm transition-colors lg:border-b-0 lg:border-l-4";
+          const base = "flex w-full items-center gap-3 whitespace-nowrap border-b-4 px-5 py-3 text-sm transition-colors lg:border-b-0 lg:border-l-4";
 
           return (
             <li key={m.href} className="shrink-0 lg:shrink">
@@ -52,9 +43,7 @@ export function AdminNav({ rol }: { rol: Rol | null }) {
                 >
                   <Icono className="h-4 w-4" />
                   {m.nombre}
-                  <span className="ml-auto rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
-                    Pronto
-                  </span>
+                  <span className="ml-auto rounded bg-surface-2 px-1.5 py-0.5 text-[10px] uppercase tracking-wider">Pronto</span>
                 </span>
               )}
             </li>
