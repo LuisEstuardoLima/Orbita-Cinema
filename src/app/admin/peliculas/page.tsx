@@ -15,6 +15,8 @@
  * `src/middleware.ts` por rol (solo Administrador), pero SOLO si `AUTH_GUARD=on`. Ver el README.
  */
 import type { Metadata } from "next";
+import { exigirRol } from "@/lib/auth/pagina";
+import { ROLES_ADMIN } from "@/lib/permisos";
 import { listPeliculasAdmin } from "@/lib/db/cartelera";
 import { AdminPeliculasClient } from "./admin-peliculas-client";
 
@@ -32,6 +34,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
+  await exigirRol(ROLES_ADMIN, "/admin/peliculas");
   const peliculas = await listPeliculasAdmin();
   return <AdminPeliculasClient peliculas={peliculas} />;
 }

@@ -10,6 +10,8 @@
  * `AUTH_GUARD=on`. Ver el README.
  */
 import type { Metadata } from "next";
+import { exigirRol } from "@/lib/auth/pagina";
+import { ROLES_PANEL } from "@/lib/permisos";
 import { listFuncionesAdmin, listOpcionesFuncion } from "@/lib/db/funciones";
 import { AdminFuncionesClient } from "./admin-funciones-client";
 
@@ -27,6 +29,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
+  await exigirRol(ROLES_PANEL, "/admin/funciones");
   const [{ hoy, funciones }, { peliculas, salas }] = await Promise.all([
     listFuncionesAdmin(),
     listOpcionesFuncion(),

@@ -4,15 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache"; // <-- 1. Importamos revalidatePath
 import { cookies, headers } from "next/headers";
-import { getRol, type Rol } from "@/lib/roles";
+import { getRol } from "@/lib/roles";
+import { inicioDeRol } from "@/lib/permisos";
 import { COOKIE_SESION_TEMPORAL, rutaInterna } from "@/lib/supabase/sesion";
-
-/** Panel de inicio de cada rol tras iniciar sesión (SCRUM-115). El Cliente va a la cartelera. */
-const INICIO_POR_ROL: Record<Rol, string> = {
-  Administrador: "/admin",
-  Colaborador: "/admin/funciones",
-  Cliente: "/",
-};
 
 /**
  * Origen actual (protocolo + host) para los redirects de Supabase Auth
@@ -114,7 +108,7 @@ export async function iniciarSesion(formData: FormData) {
   }
 
   const rol = await getRol(supabase, data.user.id);
-  const destino = rutaInterna(formData.get("next")) ?? INICIO_POR_ROL[rol];
+  const destino = rutaInterna(formData.get("next")) ?? inicioDeRol(rol);
 
   // Limpiamos la caché global y redirigimos
   revalidatePath("/", "layout");

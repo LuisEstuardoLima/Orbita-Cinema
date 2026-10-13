@@ -7,6 +7,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { MODULOS_ADMIN } from "@/lib/admin-modulos";
+import { getPerfilActual } from "@/lib/auth/perfil";
+import { exigirRol } from "@/lib/auth/pagina";
+import { ROLES_PANEL, puedeAcceder } from "@/lib/permisos";
 
 export const metadata: Metadata = {
   title: "Panel de administración | Órbita Cinema",
@@ -14,7 +17,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function Page() {
+export default async function Page() {
+  await exigirRol(ROLES_PANEL, "/admin");
+  // Solo se muestran los módulos permitidos para el rol (SCRUM-116); sin sesión (AUTH_GUARD=off), todos.
+  const perfil = await getPerfilActual();
+  const modulos = MODULOS_ADMIN.filter((m) => !perfil || puedeAcceder(perfil.rol, m.href));
+
   return (
     <section>
       <h1 className="text-3xl tracking-wide">Panel de administración</h1>
@@ -23,7 +31,7 @@ export default function Page() {
       </p>
 
       <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-        {MODULOS_ADMIN.map((m) => {
+        {modulos.map((m) => {
           const Icono = m.icono;
           const contenido = (
             <>

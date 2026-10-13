@@ -41,6 +41,26 @@ Una función ocupa su sala en el intervalo `[inicio, inicio + duracion_min + 15 
 
 **Mejora futura (alternativa B):** guardar el fin de cada función en `funcion` (p. ej. `inicio`/`fin` como `timestamp` calculados al crear) y agregar en Postgres una restricción de exclusión por sala (`create extension btree_gist` + `exclude using gist (id_sala with =, tsrange(inicio, fin) with &&) where (activa)`). La base rechazaría los traslapes aunque lleguen al mismo tiempo, y cambiar la duración de una película no movería las funciones ya programadas.
 
+## Control de acceso por rol (SCRUM-116)
+
+La matriz de permisos vive en **`src/lib/permisos.ts`** (única fuente de verdad):
+
+| Zona / módulo | Cliente | Colaborador | Administrador |
+|---|:-:|:-:|:-:|
+| Sitio público, compra, `/perfil` | ✔ | ✔ | ✔ |
+| `/admin` (inicio del panel) | | ✔ | ✔ |
+| `/admin/funciones` | | ✔ | ✔ |
+| `/admin/peliculas` | | | ✔ |
+| `/admin/salas` (y asientos) | | | ✔ |
+
+Se aplica en cuatro capas, todas con la misma matriz y el rol leído de la BD (`usuarios.id_rol`), nunca del navegador:
+1. **Middleware** (`src/middleware.ts`): sin sesión → `/login?next=...`; con sesión sin permiso → `/acceso-denegado`.
+2. **Páginas del panel** (`exigirRol` en `lib/auth/pagina.ts`): segunda barrera en el servidor.
+3. **Server Actions** (`assertAdmin` / `assertRol`): rechazan la acción aunque se invoque sin pasar por la pantalla.
+4. **Base de datos**: RLS activo; las tablas solo tienen políticas de lectura pública (películas, salas y funciones activas) y toda escritura administrativa pasa por la service role desde el servidor. El usuario no puede escribir su propio `id_rol`.
+
+El menú y las tarjetas de `/admin` se filtran por rol, y el encabezado muestra nombre y rol. Todo requiere `AUTH_GUARD=on` (con `off` no se valida nada: solo para desarrollo sin login). Para proteger un módulo nuevo: agregar su regla en `REGLAS_RUTA` (antes de `/admin`) y su entrada en `lib/admin-modulos.ts`.
+
 ## Estructura
 
 ```

@@ -1,23 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getRol, type Rol } from "@/lib/roles";
+import { getRol } from "@/lib/roles";
+import { puedeAcceder, reglaDeRuta } from "@/lib/permisos";
 import { COOKIE_SESION_TEMPORAL, sinPersistencia } from "@/lib/supabase/sesion";
 
 /**
- * Control de acceso por rol (RNF-006 / RNF-015).
- * - /perfil  -> requiere sesión.
- * - /admin/* -> Colaborador o Administrador (/admin/peliculas: solo Administrador).
+ * Control de acceso por rol (RNF-006 / RNF-015 / SCRUM-116).
+ * Las reglas viven en `src/lib/permisos.ts` (matriz de permisos):
+ * - sin sesión -> /login?next=<ruta>
+ * - con sesión pero sin permiso para la ruta -> /acceso-denegado
  *
  * Solo actúa si AUTH_GUARD=on, para poder trabajar la UI mientras la autenticación
  * real de Supabase todavía no esté configurada.
  */
-const RULES: { prefix: string; roles: Rol[] | "any" }[] = [
-  { prefix: "/admin/peliculas", roles: ["Administrador"] },
-  { prefix: "/admin/salas", roles: ["Administrador"] },
-  { prefix: "/admin", roles: ["Colaborador", "Administrador"] },
-  { prefix: "/perfil", roles: "any" },
-];
-
 export async function middleware(request: NextRequest) {
   if (process.env.AUTH_GUARD !== "on") return NextResponse.next();
 
@@ -49,8 +44,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const rule = RULES.find((r) => path === r.prefix || path.startsWith(`${r.prefix}/`));
-  if (!rule) return response;
+  if (!reglaDeRuta(path)) return response; // ruta pública
 
   if (!user) {
     const login = new URL("/login", request.url);
@@ -59,9 +53,9 @@ export async function middleware(request: NextRequest) {
   }
 
   const rol = await getRol(supabase, user.id); // BD: usuarios.id_rol -> rol.nombre (fuente única)
-  if (rule.roles !== "any" && !rule.roles.includes(rol)) {
-    // No revelamos que el panel existe: se redirige a la cartelera.
-    return NextResponse.redirect(new URL("/", request.url));
+  if (!puedeAcceder(rol, path)) {
+    // Sesión válida pero rol sin permiso: pantalla de acceso denegado con mensaje.
+    return NextResponse.redirect(new URL("/acceso-denegado", request.url));
   }
 
   return response;

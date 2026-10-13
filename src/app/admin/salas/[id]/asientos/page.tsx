@@ -7,6 +7,8 @@
  */
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { exigirRol } from "@/lib/auth/pagina";
+import { ROLES_ADMIN } from "@/lib/permisos";
 import {
   getDistribucionAsientos,
   salaTieneFuncionesActivas,
@@ -26,6 +28,7 @@ export const metadata: Metadata = {
 };
 
 export default async function Page({ params }: { params: Params }) {
+  await exigirRol(ROLES_ADMIN, "/admin/salas");
   const { id } = await params;
   const idSala = Number(id);
 

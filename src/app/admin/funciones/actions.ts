@@ -15,15 +15,15 @@ import { format } from "date-fns";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertRol } from "@/lib/auth/guard";
+import { ROLES_PANEL } from "@/lib/permisos";
 import { IDIOMAS_FILTRO } from "@/lib/cartelera";
 import { buscarCruce, DURACION_DEFECTO_MIN } from "@/lib/db/funciones";
 import { ahoraGuatemala, parseFecha, toFecha } from "@/lib/fechas";
 import type { FuncionRow, PeliculaRow, SalaRow } from "@/lib/db-types";
-import type { Rol } from "@/lib/roles";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
-const ROLES: Rol[] = ["Administrador", "Colaborador"];
+const ROLES = ROLES_PANEL; // Administrador y Colaborador (matriz en lib/permisos.ts)
 
 const schema = z.object({
   idPelicula: z.coerce

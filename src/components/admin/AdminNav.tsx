@@ -3,14 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { INICIO_ADMIN, MODULOS_ADMIN, esActivo } from "@/lib/admin-modulos";
+import { puedeAcceder } from "@/lib/permisos";
+import type { Rol } from "@/lib/roles";
 
 /**
  * Menú del panel (SCRUM-112). Vive en `admin/layout.tsx`, que no se vuelve a montar al navegar
  * entre módulos: por eso el menú se mantiene visible y solo cambia el módulo marcado.
  * En pantallas angostas se convierte en una fila con scroll horizontal.
  */
-export function AdminNav() {
+export function AdminNav({ rol }: { rol: Rol | null }) {
   const pathname = usePathname();
+  // Cada rol solo ve los módulos a los que puede entrar (SCRUM-116). Sin rol (AUTH_GUARD=off,
+  // desarrollo sin login) se muestran todos.
+  const visibles = [INICIO_ADMIN, ...MODULOS_ADMIN].filter((m) => rol === null || puedeAcceder(rol, m.href));
 
   return (
     <nav aria-label="Módulos del panel" className="card-surface overflow-hidden lg:h-fit">
@@ -18,7 +23,7 @@ export function AdminNav() {
         Navegación
       </h2>
       <ul className="flex overflow-x-auto lg:block lg:overflow-visible">
-        {[INICIO_ADMIN, ...MODULOS_ADMIN].map((m) => {
+        {visibles.map((m) => {
           const Icono = m.icono;
           const activo = esActivo(m.href, pathname);
           const base =
