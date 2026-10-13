@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
-import { str, type SP } from "@/lib/search-params";
+import { CANTIDADES_VACIAS, cantidadesDeParams, validarCantidades } from "@/lib/compra";
+import { getFuncionCompra } from "@/lib/db/compra";
+import { num, type SP } from "@/lib/search-params";
 import { EntradasClient } from "./entradas-client";
+
+export const dynamic = "force-dynamic"; // depende de la función, sus precios y la hora actual
 
 export const metadata: Metadata = {
   title: "Selección de entradas | Órbita Cinema",
@@ -12,14 +16,20 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * SCRUM-117: la función llega por `?funcion=<id>`; sus datos y los precios de su sala se leen
+ * de Supabase. Las cantidades pueden venir en la URL al volver desde /asientos ("Cancelar");
+ * si no son válidas se empieza en 0.
+ */
 export default async function Page({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
+  const datos = await getFuncionCompra(num(sp["funcion"]));
+  const cantidades = cantidadesDeParams(sp);
+
   return (
     <EntradasClient
-      slug={str(sp["slug"], "batman")}
-      hall={str(sp["hall"])}
-      time={str(sp["time"])}
-      format={str(sp["format"])}
+      datos={datos}
+      cantidadesIniciales={validarCantidades(cantidades) ? CANTIDADES_VACIAS : cantidades}
     />
   );
 }

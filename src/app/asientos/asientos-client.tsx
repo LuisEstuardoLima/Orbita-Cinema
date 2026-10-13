@@ -4,15 +4,14 @@ import Link from "next/link";
 import { useState } from "react";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
+import { COLS, ROWS, getPreselected, getReserved } from "@/lib/cinema-data";
 import {
-  COLS,
-  ROWS,
-  TICKET_TYPES,
-  buildFunctionLabel,
-  getMovie,
-  getPreselected,
-  getReserved,
-} from "@/lib/cinema-data";
+  etiquetaFuncion,
+  fechaCortaFuncion,
+  quetzales,
+  salaFuncion,
+  type ResumenCompra,
+} from "@/lib/compra";
 import { toHref } from "@/lib/search-params";
 
 type Props = {
@@ -23,14 +22,17 @@ type Props = {
   adulto: number;
   tercera: number;
   ninos: number;
+  /** SCRUM-122: función y resumen calculados en el servidor (`calcularResumenCompra`). */
+  idFuncion: number;
+  resumen: ResumenCompra | null;
+  errorResumen: string | null;
 };
 
-const PRICE = 30;
 const SEAT_CAP = 10;
 
 export function AsientosClient(search: Props) {
   const slug = search.slug || "batman";
-  const movie = getMovie(slug);
+  const { resumen, errorResumen } = search;
   const reserved = getReserved(slug);
 
   const tickets = search.adulto + search.tercera + search.ninos;
@@ -56,20 +58,25 @@ export function AsientosClient(search: Props) {
     });
   };
 
-  const ticketsTotal = TICKET_TYPES.reduce(
-    (sum, t) => sum + t.price * search[t.id as "adulto" | "tercera" | "ninos"],
-    0,
-  );
-  const subtotal = tickets > 0 ? ticketsTotal : selected.length * PRICE;
-  const recargo = subtotal * 0.05;
+  // Para "Cancelar": volver a /entradas con la misma función y cantidades.
+  const volverAEntradas = toHref("/entradas", {
+    funcion: search.idFuncion,
+    adulto: search.adulto,
+    tercera: search.tercera,
+    ninos: search.ninos,
+  });
 
   return (
     <div className="min-h-screen">
       <SiteHeader />
       <main className="mx-auto max-w-[1400px] px-6 py-10">
         <FunctionHeader
-          title={movie.title}
-          subtitle={buildFunctionLabel(search.hall, search.time, search.format)}
+          title={resumen ? resumen.funcion.pelicula : "Función no disponible"}
+          subtitle={
+            resumen
+              ? etiquetaFuncion(resumen.funcion)
+              : "Vuelve a la cartelera para elegir otra función."
+          }
         />
 
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
@@ -161,47 +168,83 @@ export function AsientosClient(search: Props) {
 
             <div className="my-5 h-px bg-border" />
 
+            {/* SCRUM-122: todo el cuadro sale de `calcularResumenCompra` (servidor). */}
             <h3 className="mb-3 text-xl tracking-wide">Confirmación</h3>
-            <dl className="space-y-2 rounded-lg bg-surface-2 p-4 text-sm">
-              <Row label="Película" value={movie.title} />
-              <Row label="Horario" value={`${search.time || "18:00"} Hrs.`} />
-              <Row label="Sala" value={search.hall || "1 Regular 2D"} />
-              <Row label="Subtotal" value={`Q.${subtotal.toFixed(2)}`} />
-              <Row label="Recargo" value={`Q.${recargo.toFixed(2)}`} />
-              <div className="mt-2 border-t border-border pt-2">
+            {resumen ? (
+              <dl className="space-y-2 rounded-lg bg-surface-2 p-4 text-sm">
+                <Row label="Película" value={resumen.funcion.pelicula} multilinea />
                 <Row
-                  label="Total"
-                  value={`Q.${(subtotal + recargo).toFixed(2)}`}
-                  highlight
+                  label="Horario"
+                  value={`${fechaCortaFuncion(resumen.funcion.fecha)} · ${resumen.funcion.hora} Hrs.`}
                 />
+                <Row label="Sala" value={salaFuncion(resumen.funcion)} />
+                <div className="mt-2 space-y-2 border-t border-border pt-2">
+                  {resumen.lineas
+                    .filter((l) => l.cantidad > 0)
+                    .map((l) => (
+                      <Row
+                        key={l.tipo}
+                        label={`${l.cantidad} × ${l.nombre}`}
+                        value={quetzales(l.importe)}
+                        plain
+                      />
+                    ))}
+                </div>
+                <div className="mt-2 space-y-2 border-t border-border pt-2">
+                  <Row label="Subtotal" value={quetzales(resumen.subtotal)} />
+                  <Row label="Recargo" value={quetzales(resumen.recargo)} />
+                </div>
+                <div className="mt-2 border-t border-border pt-2">
+                  <Row label="Total" value={quetzales(resumen.total)} highlight />
+                </div>
+              </dl>
+            ) : (
+              <div className="rounded-lg bg-surface-2 p-4 text-sm">
+                <p role="alert" className="text-destructive">
+                  {errorResumen}
+                </p>
+                <Link
+                  href="/"
+                  className="mt-3 inline-block font-semibold text-primary hover:underline"
+                >
+                  Volver a la cartelera
+                </Link>
               </div>
-            </dl>
+            )}
 
             <div className="mt-6 flex gap-3">
-              <Link
-                href={toHref("/entradas", {
-                  slug,
-                  hall: search.hall,
-                  time: search.time,
-                  format: search.format,
-                })}
-                className="btn-ghost flex-1"
-              >
+              <Link href={volverAEntradas} className="btn-ghost flex-1">
                 Cancelar
               </Link>
-              <Link
-                href={toHref("/pago", {
-                  slug,
-                  hall: search.hall,
-                  time: search.time,
-                  format: search.format,
-                  seats: selected.join(","),
-                  total: Number((subtotal + recargo).toFixed(2)),
-                })}
-                className="btn-primary flex-1"
-              >
-                Continuar
-              </Link>
+              {resumen ? (
+                // TODO SCRUM-124: /pago debe recalcular el total con `calcularResumenCompra`
+                // (con `funcion` y las cantidades que ya viajan aquí) en lugar de confiar en el
+                // parámetro `total` de la URL, que el usuario puede editar.
+                <Link
+                  href={toHref("/pago", {
+                    slug,
+                    hall: search.hall,
+                    time: search.time,
+                    format: search.format,
+                    seats: selected.join(","),
+                    total: resumen.total,
+                    funcion: search.idFuncion,
+                    adulto: search.adulto,
+                    tercera: search.tercera,
+                    ninos: search.ninos,
+                  })}
+                  className="btn-primary flex-1"
+                >
+                  Continuar
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  className="btn-primary pointer-events-none flex-1 opacity-50"
+                >
+                  Continuar
+                </span>
+              )}
             </div>
           </aside>
         </div>
@@ -214,15 +257,29 @@ function Row({
   label,
   value,
   highlight,
+  plain,
+  multilinea,
 }: {
   label: string;
   value: string;
   highlight?: boolean;
+  /** Sin ":" tras la etiqueta (líneas del desglose, p. ej. "2 × Adulto"). */
+  plain?: boolean;
+  /** Valor que puede ocupar varias líneas (p. ej. el título de la película): se alinea a la
+   * derecha, con separación de la etiqueta, y la etiqueta no se parte. */
+  multilinea?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between">
-      <dt className="text-muted-foreground">{label}:</dt>
-      <dd className={highlight ? "text-lg font-bold text-primary" : "font-medium"}>
+    <div className={`flex items-center justify-between${multilinea ? " gap-3" : ""}`}>
+      <dt className={`text-muted-foreground${multilinea ? " shrink-0 whitespace-nowrap" : ""}`}>
+        {label}
+        {plain ? "" : ":"}
+      </dt>
+      <dd
+        className={`${highlight ? "text-lg font-bold text-primary" : "font-medium"}${
+          multilinea ? " text-right" : ""
+        }`}
+      >
         {value}
       </dd>
     </div>

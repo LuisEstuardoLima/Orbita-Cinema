@@ -5,64 +5,87 @@ import { useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
-import { buildFunctionLabel, getMovie, TICKET_TYPES } from "@/lib/cinema-data";
-import { rangoEdad } from "@/lib/entradas";
+import { etiquetaFuncion, MAX_ENTRADAS_POR_COMPRA, quetzales, type Cantidades } from "@/lib/compra";
+import type { FuncionConPrecios } from "@/lib/db/compra";
+import { TIPOS_ENTRADA, type TipoEntradaId } from "@/lib/entradas";
 import { toHref } from "@/lib/search-params";
 
-type Props = { slug: string; hall: string; time: string; format: string };
-
-const TICKET_CAP = 10;
-
-export function EntradasClient(search: Props) {
-  const slug = search.slug || "batman";
-  const movie = getMovie(slug);
-  const [qty, setQty] = useState<Record<string, number>>({
-    adulto: 1,
-    tercera: 1,
-    ninos: 1,
-  });
+/**
+ * SCRUM-117: selección de tipo y cantidad de entradas para una función real.
+ * Los precios vienen de la sala de la función (SCRUM-121). El total que se ve aquí es solo
+ * informativo: el monto que vale se recalcula en el servidor (`calcularResumenCompra`).
+ */
+export function EntradasClient({
+  datos,
+  cantidadesIniciales,
+}: {
+  datos: FuncionConPrecios;
+  cantidadesIniciales: Cantidades;
+}) {
+  const [qty, setQty] = useState<Cantidades>(cantidadesIniciales);
   const [limitReached, setLimitReached] = useState(false);
 
-  const ticketCount = Object.values(qty).reduce((a, b) => a + b, 0);
+  const ticketCount = TIPOS_ENTRADA.reduce((sum, t) => sum + qty[t.id], 0);
 
-  const change = (id: string, delta: number) => {
-    if (delta > 0 && ticketCount >= TICKET_CAP) {
+  const change = (id: TipoEntradaId, delta: number) => {
+    if (delta > 0 && ticketCount >= MAX_ENTRADAS_POR_COMPRA) {
       setLimitReached(true);
       return;
     }
     setLimitReached(false);
-    setQty((q) => ({ ...q, [id]: Math.max(0, (q[id] ?? 0) + delta) }));
+    setQty((q) => ({ ...q, [id]: Math.max(0, q[id] + delta) }));
   };
 
-  const total = TICKET_TYPES.reduce((sum, t) => sum + t.price * (qty[t.id] ?? 0), 0);
+  // Función no disponible (no existe, cancelada, ya pasó o sala sin precios).
+  if (!datos.ok) {
+    return (
+      <div className="min-h-screen">
+        <SiteHeader />
+        <main className="mx-auto max-w-[1100px] px-6 py-10">
+          <FunctionHeader
+            title="Función no disponible"
+            subtitle="Vuelve a la cartelera para elegir otra función."
+          />
+          <section className="card-surface p-8">
+            <p role="alert" className="text-lg">
+              {datos.error}
+            </p>
+            <div className="mt-6 flex justify-end">
+              <Link href="/" className="btn-primary px-10">
+                Volver a la cartelera
+              </Link>
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  const { funcion, precios } = datos;
+  const total = TIPOS_ENTRADA.reduce((sum, t) => sum + precios[t.id] * qty[t.id], 0);
 
   return (
     <div className="min-h-screen">
       <SiteHeader />
       <main className="mx-auto max-w-[1100px] px-6 py-10">
-        <FunctionHeader
-          title={movie.title}
-          subtitle={buildFunctionLabel(search.hall, search.time, search.format)}
-        />
+        <FunctionHeader title={funcion.pelicula} subtitle={etiquetaFuncion(funcion)} />
 
         <section className="card-surface p-8">
           <h2 className="section-title mb-6">Seleccione sus entradas</h2>
 
           <ul className="divide-y divide-border">
-            {TICKET_TYPES.map((t) => (
+            {TIPOS_ENTRADA.map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-6 py-5">
                 <div>
                   <p className="text-lg font-semibold">
-                    {t.label}{" "}
-                    <span className="text-primary">Q.{t.price.toFixed(2)}</span>
+                    {t.nombre} <span className="text-primary">{quetzales(precios[t.id])}</span>
                   </p>
-                  {/* Rango de edad desde la fuente única (SCRUM-121); los precios se conectan en SCRUM-117. */}
-                  <p className="text-sm text-muted-foreground">({rangoEdad(t.id)})</p>
+                  <p className="text-sm text-muted-foreground">({t.rangoEdad})</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => change(t.id, -1)}
-                    aria-label={`Quitar entrada ${t.label}`}
+                    aria-label={`Quitar entrada ${t.nombre}`}
                     className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-secondary transition-colors hover:border-primary hover:text-primary"
                   >
                     <Minus className="h-4 w-4" />
@@ -70,7 +93,7 @@ export function EntradasClient(search: Props) {
                   <span className="w-8 text-center text-lg font-semibold">{qty[t.id]}</span>
                   <button
                     onClick={() => change(t.id, 1)}
-                    aria-label={`Agregar entrada ${t.label}`}
+                    aria-label={`Agregar entrada ${t.nombre}`}
                     className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-secondary transition-colors hover:border-primary hover:text-primary"
                   >
                     <Plus className="h-4 w-4" />
@@ -82,7 +105,7 @@ export function EntradasClient(search: Props) {
 
           {limitReached && (
             <p className="mt-6 text-sm text-primary">
-              Has alcanzado el límite máximo de {TICKET_CAP} entradas por compra.
+              Has alcanzado el límite máximo de {MAX_ENTRADAS_POR_COMPRA} entradas por compra.
             </p>
           )}
 
@@ -93,28 +116,40 @@ export function EntradasClient(search: Props) {
           <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-6">
             <p className="text-lg">
               Total tickets seleccionados{" "}
-              <span className="font-display text-3xl text-primary">
-                Q.{total.toFixed(2)}
-              </span>
+              <span className="font-display text-3xl text-primary">{quetzales(total)}</span>
             </p>
             <div className="flex gap-3">
-              <Link href={`/pelicula/${slug}`} className="btn-ghost">
+              <Link
+                href={toHref(`/pelicula/${funcion.slug}`, {
+                  fecha: funcion.fecha,
+                  funcion: funcion.id,
+                })}
+                className="btn-ghost"
+              >
                 Cancelar
               </Link>
-              <Link
-                href={toHref("/asientos", {
-                  slug,
-                  hall: search.hall,
-                  time: search.time,
-                  format: search.format,
-                  adulto: qty["adulto"] ?? 0,
-                  tercera: qty["tercera"] ?? 0,
-                  ninos: qty["ninos"] ?? 0,
-                })}
-                className="btn-primary px-10"
-              >
-                Continuar
-              </Link>
+              {/* Solo viajan la función y las cantidades: precios y totales se recalculan en el servidor. */}
+              {ticketCount > 0 ? (
+                <Link
+                  href={toHref("/asientos", {
+                    funcion: funcion.id,
+                    adulto: qty.adulto,
+                    tercera: qty.tercera,
+                    ninos: qty.ninos,
+                  })}
+                  className="btn-primary px-10"
+                >
+                  Continuar
+                </Link>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  title="Elige al menos 1 entrada"
+                  className="btn-primary pointer-events-none px-10 opacity-50"
+                >
+                  Continuar
+                </span>
+              )}
             </div>
           </div>
         </section>
