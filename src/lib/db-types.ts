@@ -25,6 +25,11 @@ export type SalaRow = {
   capacidad: number | null;
   tipo_sala: string | null;
   activa: boolean;
+  // SCRUM-121 (sprint3-precios.sql): precio en quetzales por tipo de entrada.
+  // NULL = sin precio capturado (o columna aún no creada en la base).
+  precio_adulto: number | null;
+  precio_tercera_edad: number | null;
+  precio_nino: number | null;
 };
 
 /**

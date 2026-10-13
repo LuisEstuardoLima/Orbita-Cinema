@@ -6,6 +6,7 @@ import { Minus, Plus } from "lucide-react";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import { buildFunctionLabel, getMovie, TICKET_TYPES } from "@/lib/cinema-data";
+import { rangoEdad } from "@/lib/entradas";
 import { toHref } from "@/lib/search-params";
 
 type Props = { slug: string; hall: string; time: string; format: string };
@@ -55,7 +56,8 @@ export function EntradasClient(search: Props) {
                     {t.label}{" "}
                     <span className="text-primary">Q.{t.price.toFixed(2)}</span>
                   </p>
-                  <p className="text-sm text-muted-foreground">{t.note}</p>
+                  {/* Rango de edad desde la fuente única (SCRUM-121); los precios se conectan en SCRUM-117. */}
+                  <p className="text-sm text-muted-foreground">({rangoEdad(t.id)})</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button

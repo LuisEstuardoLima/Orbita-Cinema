@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SalaRow } from "@/lib/db-types";
+import { COLUMNA_PRECIO, type PreciosSala } from "@/lib/entradas";
 
 /**
  * SCRUM-109: consultas del módulo /admin/salas.
@@ -19,7 +20,33 @@ export type SalaAdmin = {
   activa: boolean;
   /** true si la sala ya tiene un plano de asientos guardado (SCRUM-110). */
   tieneAsientos: boolean;
+  /** SCRUM-121: precio por tipo de entrada (null = sin precio capturado). */
+  precios: PreciosSala;
 };
+
+const COLUMNAS_SALA = "id, nombre, capacidad, tipo_sala, activa";
+const COLUMNAS_PRECIO = Object.values(COLUMNA_PRECIO).join(", ");
+
+/** numeric de Postgres puede llegar como número o como texto: se normaliza a number | null. */
+const aPrecio = (valor: unknown): number | null =>
+  valor == null || valor === "" || Number.isNaN(Number(valor)) ? null : Number(valor);
+
+/**
+ * Lee las salas con sus precios. Si las columnas de precio todavía no existen
+ * (sprint3-precios.sql aún no corrido por alguien del equipo), Postgres
+ * responde 42703 (undefined_column) y se vuelve a leer sin ellas: los precios
+ * quedan en null y el panel no se cae, igual que con la tabla `asiento`.
+ */
+async function leerSalas(admin: ReturnType<typeof createAdminClient>) {
+  const conPrecios = await admin
+    .from("sala")
+    .select(`${COLUMNAS_SALA}, ${COLUMNAS_PRECIO}`)
+    .order("id");
+
+  if (conPrecios.error?.code !== "42703") return conPrecios;
+
+  return admin.from("sala").select(COLUMNAS_SALA).order("id");
+}
 
 /**
  * Orden natural por nombre: compara los números como números, así que
@@ -43,16 +70,13 @@ export async function listSalasAdmin(): Promise<SalaAdmin[]> {
   const admin = createAdminClient();
 
   const [salas, conAsientos] = await Promise.all([
-    admin
-      .from("sala")
-      .select("id, nombre, capacidad, tipo_sala, activa")
-      .order("id"),
+    leerSalas(admin),
     // Ids de sala que ya tienen al menos un asiento guardado.
     admin.from("asiento").select("id_sala"),
   ]);
 
   if (salas.error) {
-    throw new Error(`sala: ${salas.error}`);
+    throw new Error(`sala: ${salas.error.message}`);
   }
 
   const idsConAsientos = new Set(
@@ -67,7 +91,8 @@ export async function listSalasAdmin(): Promise<SalaAdmin[]> {
         ),
   );
 
-  return (salas.data as SalaRow[])
+  // Sin las columnas de precio, esos campos llegan undefined y aPrecio los deja en null.
+  return (salas.data as unknown as SalaRow[])
     .map((s) => ({
       id: s.id,
       nombre: s.nombre,
@@ -75,6 +100,11 @@ export async function listSalasAdmin(): Promise<SalaAdmin[]> {
       tipo: s.tipo_sala ?? "",
       activa: s.activa ?? false,
       tieneAsientos: idsConAsientos.has(s.id),
+      precios: {
+        adulto: aPrecio(s.precio_adulto),
+        tercera: aPrecio(s.precio_tercera_edad),
+        ninos: aPrecio(s.precio_nino),
+      },
     }))
     .sort((a, b) => ordenNatural.compare(a.nombre, b.nombre));
 }

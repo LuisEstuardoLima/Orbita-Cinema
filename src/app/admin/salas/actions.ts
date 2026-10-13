@@ -18,11 +18,14 @@ import {
 } from "@/lib/db/asientos";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SalaRow } from "@/lib/db-types";
+import { COLUMNA_PRECIO, TIPOS_ENTRADA, type TipoEntradaId } from "@/lib/entradas";
 
 export type ActionResult =
   | { ok: true }
   | { ok: false; error: string };
 
+// ⚠️ Lista duplicada: la misma está en `admin-salas-client.tsx`. Si se agrega o cambia un tipo,
+// actualizar las dos (y PRECIOS_SUGERIDOS). Pendiente unificarla en un módulo compartido.
 const TIPOS_SALA = [
   "TRADICIONAL 2D",
   "TRADICIONAL 3D",
@@ -33,6 +36,33 @@ const TIPOS_SALA = [
   "VIP 2D",
   "VIP 3D",
 ] as const;
+
+type TipoSala = (typeof TIPOS_SALA)[number];
+
+/**
+ * SCRUM-121: precios sugeridos (quetzales) con los que nace una sala nueva según su tipo,
+ * para que nunca quede sin precio. Son los mismos que llena `supabase/sprint3-precios.sql`
+ * en las salas existentes: si cambian, cambiar los dos lugares.
+ * Editar el tipo de una sala existente NO cambia sus precios (`editarSala` no los toca).
+ */
+const PRECIOS_SUGERIDOS: Record<TipoSala, Record<TipoEntradaId, number>> = {
+  "TRADICIONAL 2D": { adulto: 35, tercera: 30, ninos: 25 },
+  "TRADICIONAL 3D": { adulto: 45, tercera: 40, ninos: 35 },
+  "MACRO XE 2D": { adulto: 50, tercera: 45, ninos: 40 },
+  "MACRO XE 3D": { adulto: 60, tercera: 55, ninos: 50 },
+  "IMAX 2D": { adulto: 55, tercera: 50, ninos: 45 },
+  "IMAX 3D": { adulto: 65, tercera: 60, ninos: 55 },
+  "VIP 2D": { adulto: 75, tercera: 70, ninos: 65 },
+  "VIP 3D": { adulto: 85, tercera: 80, ninos: 75 },
+};
+
+/** { adulto: 35, ... } -> { precio_adulto: 35, ... } (columnas de `sala`). */
+const filaPrecios = (precios: Record<TipoEntradaId, number>) =>
+  Object.fromEntries(TIPOS_ENTRADA.map((t) => [COLUMNA_PRECIO[t.id], precios[t.id]]));
+
+/** Postgres 42703 (undefined_column): falta correr supabase/sprint3-precios.sql. */
+const SIN_COLUMNAS_PRECIO =
+  "Faltan las columnas de precio en la base. Ejecuta supabase/sprint3-precios.sql en Supabase.";
 
 /**
  * Reglas del formulario.
@@ -161,6 +191,7 @@ export async function crearSala(
   // Opción A: una sala nueva siempre nace sin asientos (capacidad 0).
   // La capacidad real se recalcula al guardar el plano en
   // `guardarDistribucionAsientos` (único lugar que la actualiza).
+  // SCRUM-121: nace con los precios sugeridos de su tipo.
   const { error } = await createAdminClient()
     .from("sala")
     .insert({
@@ -168,12 +199,16 @@ export async function crearSala(
       tipo_sala: tipo,
       capacidad: 0,
       activa: true,
+      ...filaPrecios(PRECIOS_SUGERIDOS[tipo]),
     });
 
   if (error) {
     return {
       ok: false,
-      error: `No se pudo registrar la sala: ${error.message}`,
+      error:
+        error.code === "42703"
+          ? SIN_COLUMNAS_PRECIO
+          : `No se pudo registrar la sala: ${error.message}`,
     };
   }
 
@@ -422,6 +457,96 @@ export async function activarSala(
     return {
       ok: false,
       error: `No se pudo activar la sala: ${error.message}`,
+    };
+  }
+
+  revalidarSalas();
+
+  return { ok: true };
+}
+
+/* =====================================================================
+ * SCRUM-121: precios de una sala por tipo de entrada.
+ * ===================================================================== */
+
+/**
+ * Un precio del formulario: obligatorio, número mayor que 0, hasta 999.99 y con
+ * máximo 2 decimales. Llega como texto para poder revisar los decimales tal
+ * como se escribieron.
+ */
+const precio = (nombre: string) =>
+  z
+    .string({ required_error: `El precio de ${nombre} es obligatorio.` })
+    .regex(
+      /^-?\d+(\.\d{1,2})?$/,
+      `El precio de ${nombre} debe ser un número con máximo 2 decimales.`,
+    )
+    .transform(Number)
+    .refine((v) => v > 0, `El precio de ${nombre} debe ser mayor que 0.`)
+    .refine((v) => v <= 999.99, `El precio de ${nombre} no puede pasar de Q999.99.`);
+
+const nombreEntrada = (id: TipoEntradaId) =>
+  TIPOS_ENTRADA.find((t) => t.id === id)?.nombre ?? id;
+
+const preciosSchema = z.object({
+  adulto: precio(nombreEntrada("adulto")),
+  tercera: precio(nombreEntrada("tercera")),
+  ninos: precio(nombreEntrada("ninos")),
+});
+
+/**
+ * SCRUM-121: guardar los precios (Adulto, 3ra. Edad, Niños) de una sala.
+ * Solo el Administrador; el Colaborador ve el modal en modo consulta.
+ */
+export async function guardarPreciosSala(
+  id: number,
+  formData: FormData,
+): Promise<ActionResult> {
+  const denied = await assertAdmin();
+
+  if (denied) {
+    return { ok: false, error: denied };
+  }
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, error: "Sala inválida." };
+  }
+
+  const parsed = preciosSchema.safeParse(
+    Object.fromEntries(TIPOS_ENTRADA.map((t) => [t.id, campo(formData, t.id)])),
+  );
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Los precios no son válidos.",
+    };
+  }
+
+  const admin = createAdminClient();
+
+  const actual = await admin.from("sala").select("id").eq("id", id).maybeSingle();
+
+  if (actual.error) {
+    return {
+      ok: false,
+      error: `No se pudo consultar la sala: ${actual.error.message}`,
+    };
+  }
+
+  if (!actual.data) {
+    return { ok: false, error: "La sala no existe." };
+  }
+
+  const { error } = await admin.from("sala").update(filaPrecios(parsed.data)).eq("id", id);
+
+  if (error) {
+    return {
+      ok: false,
+      error:
+        error.code === "42703"
+          ? SIN_COLUMNAS_PRECIO
+          : `No se pudieron guardar los precios: ${error.message}`,
     };
   }
 

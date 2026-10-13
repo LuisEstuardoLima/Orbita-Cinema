@@ -10,21 +10,25 @@
  */
 
 import { useState, useTransition, type FormEvent } from "react";
-import { Armchair, Pencil, Plus, Search } from "lucide-react";
+import { Armchair, Pencil, Plus, Search, Tag } from "lucide-react";
 import Link from "next/link";
 
 import { Modal } from "@/components/cinema/Modal";
 import { Switch } from "@/components/ui/switch";
 import type { SalaAdmin } from "@/lib/db/salas";
+import { TIPOS_ENTRADA } from "@/lib/entradas";
 import {
   activarSala,
   crearSala,
   desactivarSala,
   editarSala,
+  guardarPreciosSala,
 } from "./actions";
 
 type FiltroEstado = "" | "activas" | "inactivas";
 
+// ⚠️ Lista duplicada: la misma está en `actions.ts` (allí se valida). Si se agrega o cambia un
+// tipo, actualizar las dos. Pendiente unificarla en un módulo compartido.
 const TIPOS_SALA = [
   "TRADICIONAL 2D",
   "TRADICIONAL 3D",
@@ -62,6 +66,13 @@ export function AdminSalasClient({
 
   const [aDesactivar, setADesactivar] =
     useState<SalaAdmin | null>(null);
+
+  // SCRUM-121: sala cuyo modal de precios está abierto.
+  const [enPrecios, setEnPrecios] =
+    useState<SalaAdmin | null>(null);
+
+  const [errorPrecios, setErrorPrecios] =
+    useState<string | null>(null);
 
   const [busqueda, setBusqueda] = useState("");
 
@@ -134,6 +145,40 @@ export function AdminSalasClient({
         });
       } else {
         setError(res.error);
+      }
+    });
+  };
+
+  const cerrarPrecios = () => {
+    setEnPrecios(null);
+    setErrorPrecios(null);
+  };
+
+  /** SCRUM-121: guardar precios. El servidor repite la validación y exige Administrador. */
+  const onSubmitPrecios = (
+    e: FormEvent<HTMLFormElement>,
+  ) => {
+    e.preventDefault();
+
+    if (!enPrecios) return;
+
+    const { id, nombre } = enPrecios;
+    const datos = new FormData(e.currentTarget);
+
+    setErrorPrecios(null);
+
+    startTransition(async () => {
+      const res = await guardarPreciosSala(id, datos);
+
+      if (res.ok) {
+        cerrarPrecios();
+
+        setMensaje({
+          texto: `Los precios de "${nombre}" se guardaron correctamente.`,
+          ok: true,
+        });
+      } else {
+        setErrorPrecios(res.error);
       }
     });
   };
@@ -319,6 +364,10 @@ export function AdminSalasClient({
                 <th className="px-4 py-3">
                   Asientos
                 </th>
+
+                <th className="px-4 py-3">
+                  Precios
+                </th>
               </tr>
             </thead>
 
@@ -408,6 +457,24 @@ export function AdminSalasClient({
                       <Armchair className="h-4 w-4" />
                       {soloLectura ? "Ver asientos" : "Asientos"}
                     </Link>
+                  </td>
+
+                  {/* SCRUM-121: precios por tipo de entrada (consulta para el Colaborador). */}
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      className="btn-ghost text-primary hover:border-primary hover:text-primary"
+                      title={soloLectura ? "Ver los precios de la sala" : "Editar los precios de la sala"}
+                      onClick={() => {
+                        setMensaje(null);
+                        setErrorPrecios(null);
+                        setEnPrecios(sala);
+                      }}
+                      disabled={pendiente}
+                    >
+                      <Tag className="h-4 w-4" />
+                      {soloLectura ? "Ver precios" : "Precios"}
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -537,6 +604,109 @@ export function AdminSalasClient({
               className="text-sm text-destructive"
             >
               {error}
+            </p>
+          )}
+        </form>
+      </Modal>
+
+      {/* SCRUM-121: precios de la sala. Mismo estilo que "Editar sala"; en modo consulta
+          (Colaborador) los campos van deshabilitados y solo queda el botón Cerrar. */}
+      <Modal
+        open={!!enPrecios}
+        wide
+        title={`Precios · ${enPrecios?.nombre ?? ""}`}
+        onClose={cerrarPrecios}
+        footer={
+          soloLectura ? (
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={cerrarPrecios}
+            >
+              Cerrar
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={cerrarPrecios}
+                disabled={pendiente}
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                form="form-precios"
+                className="btn-primary"
+                disabled={pendiente}
+              >
+                {pendiente
+                  ? "Guardando..."
+                  : "Guardar cambios"}
+              </button>
+            </>
+          )
+        }
+      >
+        <form
+          key={enPrecios?.id ?? "ninguna"}
+          id="form-precios"
+          onSubmit={onSubmitPrecios}
+          className="space-y-4"
+        >
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            Tipo de sala
+            <span className="rounded-md bg-primary/15 px-2 py-1 text-xs font-bold text-primary">
+              {enPrecios?.tipo || "—"}
+            </span>
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            {TIPOS_ENTRADA.map((t) => {
+              const valor = enPrecios?.precios[t.id];
+
+              return (
+                <div key={t.id}>
+                  <label
+                    className="label"
+                    htmlFor={`precio-${t.id}`}
+                  >
+                    {t.nombre} (Q)
+                  </label>
+
+                  <input
+                    id={`precio-${t.id}`}
+                    name={t.id}
+                    type="number"
+                    inputMode="decimal"
+                    className="field"
+                    required
+                    min={0.01}
+                    max={999.99}
+                    step={0.01}
+                    placeholder="0.00"
+                    disabled={soloLectura}
+                    defaultValue={
+                      valor == null ? "" : valor.toFixed(2)
+                    }
+                  />
+
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t.rangoEdad}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          {errorPrecios && (
+            <p
+              role="alert"
+              className="text-sm text-destructive"
+            >
+              {errorPrecios}
             </p>
           )}
         </form>

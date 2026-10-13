@@ -122,9 +122,10 @@ export const buildFunctionLabel = (hall?: string, time?: string, format?: string
   hall && time ? `${hall} - Horario: ${time} - ${format ?? ""}`.trim() : FUNCTION_LABEL;
 
 export const TICKET_TYPES = [
-  { id: "adulto", label: "Adulto", note: "(Mayores de 18 años)", price: 35 },
-  { id: "tercera", label: "3ra. Edad", note: "(Mayores de 60 años)", price: 30 },
-  { id: "ninos", label: "Niños", note: "(Menores de 18 años)", price: 25 },
+  // El rango de edad de cada tipo vive en `lib/entradas.ts` (SCRUM-121, fuente única).
+  { id: "adulto", label: "Adulto", price: 35 },
+  { id: "tercera", label: "3ra. Edad", price: 30 },
+  { id: "ninos", label: "Niños", price: 25 },
 ];
 
 export const ROWS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
