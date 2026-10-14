@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Minus, Plus } from "lucide-react";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
-import { etiquetaFuncion, MAX_ENTRADAS_POR_COMPRA, quetzales, type Cantidades } from "@/lib/compra";
+import { B15, C, etiquetaFuncion, MAX_ENTRADAS_POR_COMPRA, quetzales, type Cantidades } from "@/lib/compra";
 import type { FuncionConPrecios } from "@/lib/db/compra";
 import { TIPOS_ENTRADA, type TipoEntradaId } from "@/lib/entradas";
 import { toHref } from "@/lib/search-params";
@@ -64,6 +64,10 @@ export function EntradasClient({
   const { funcion, precios } = datos;
   const total = TIPOS_ENTRADA.reduce((sum, t) => sum + precios[t.id] * qty[t.id], 0);
 
+  // SCRUM-123: en películas B15 o C no se venden entradas de Niño, se oculta la fila completa.
+  const sinNinos = funcion.clasificacion === B15 || funcion.clasificacion === C;
+  const tiposVisibles = sinNinos ? TIPOS_ENTRADA.filter((t) => t.id !== "ninos") : TIPOS_ENTRADA;
+
   return (
     <div className="min-h-screen">
       <SiteHeader />
@@ -74,7 +78,7 @@ export function EntradasClient({
           <h2 className="section-title mb-6">Seleccione sus entradas</h2>
 
           <ul className="divide-y divide-border">
-            {TIPOS_ENTRADA.map((t) => (
+            {tiposVisibles.map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-6 py-5">
                 <div>
                   <p className="text-lg font-semibold">
@@ -135,7 +139,7 @@ export function EntradasClient({
                     funcion: funcion.id,
                     adulto: qty.adulto,
                     tercera: qty.tercera,
-                    ninos: qty.ninos,
+                    ninos: sinNinos ? 0 : qty.ninos,
                   })}
                   className="btn-primary px-10"
                 >

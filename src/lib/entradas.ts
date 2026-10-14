@@ -1,4 +1,13 @@
 /**
+ * Orbita Cinema - Sistema de Gestión de Entradas y Precios
+ * 
+ * @credits Desarrollo por: Andres Diaz, Sprint 3 (Abril 2025)
+ *                           Supervisión técnica: Carlos Hernandez
+ *                           Integración frontend: Juan Felipe Sosa
+ *                           Frontend UI/UX: Sebastian Olaya
+ */
+
+/**
  * Tipos de entrada (SCRUM-121): fuente única para todo el proyecto.
  *
  * Lógica pura, sin acceso a datos: la usan el servidor (Server Actions de salas) y el
@@ -10,9 +19,9 @@
  */
 
 export const TIPOS_ENTRADA = [
-  { id: "adulto", nombre: "Adulto", rangoEdad: "18 a 59 años" },
+  { id: "adulto", nombre: "Adulto", rangoEdad: "13 a 59 años" },
   { id: "tercera", nombre: "3ra. Edad", rangoEdad: "60 años o más" },
-  { id: "ninos", nombre: "Niños", rangoEdad: "3 a 17 años" },
+  { id: "ninos", nombre: "Niños", rangoEdad: "1 a 12 años" },
 ] as const;
 
 export type TipoEntradaId = (typeof TIPOS_ENTRADA)[number]["id"];

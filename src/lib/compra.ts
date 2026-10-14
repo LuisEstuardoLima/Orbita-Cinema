@@ -26,6 +26,7 @@ export type FuncionCompra = {
   id: number;
   pelicula: string;
   slug: string;
+  clasificacion: string; // Clasificación de la película (B15, C, etc.)
   fecha: string; // YYYY-MM-DD
   hora: string; // HH:MM
   sala: string;
@@ -55,6 +56,10 @@ export const quetzales = (monto: number) => `Q ${monto.toFixed(2)}`;
 
 export const formatoFuncion = (idioma: string | null, subtitulos: boolean | null) =>
   idioma ? `${subtitulos ? "Subtitulada" : "Doblada"} ${idioma}` : "";
+
+/** Clasificaciones de película que NO permiten entrada de niños. */
+export const B15 = "B15"; // +15 años
+export const C = "C"; // +18 años (peligroso)
 
 const mayus = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 

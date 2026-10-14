@@ -6,6 +6,8 @@ import {
   PORCENTAJE_RECARGO,
   validarCantidades,
   type Cantidades,
+  B15,
+  C,
   type FuncionCompra,
   type ResumenCompra,
 } from "@/lib/compra";
@@ -65,7 +67,7 @@ export async function getFuncionCompra(idFuncion: number): Promise<FuncionConPre
   const [pel, sal] = await Promise.all([
     supabase
       .from("pelicula")
-      .select("id, titulo, slug, activa, eliminada")
+      .select("id, titulo, slug, activa, eliminada, clasificacion")
       .eq("id", f.id_pelicula)
       .maybeSingle(),
     supabase.from("sala").select("*").eq("id", f.id_sala).maybeSingle(),
@@ -74,7 +76,7 @@ export async function getFuncionCompra(idFuncion: number): Promise<FuncionConPre
     return { ok: false, error: `No se pudo consultar la película: ${pel.error.message}` };
   if (sal.error) return { ok: false, error: `No se pudo consultar la sala: ${sal.error.message}` };
 
-  const pelicula = pel.data as Pick<PeliculaRow, "titulo" | "slug" | "activa" | "eliminada"> | null;
+  const pelicula = pel.data as Pick<PeliculaRow, "titulo" | "slug" | "activa" | "eliminada" | "clasificacion"> | null;
   const sala = sal.data as SalaRow | null;
   if (!pelicula || !pelicula.activa || pelicula.eliminada) {
     return { ok: false, error: "La película de esta función ya no está disponible." };
@@ -101,6 +103,7 @@ export async function getFuncionCompra(idFuncion: number): Promise<FuncionConPre
       id: f.id,
       pelicula: pelicula.titulo,
       slug: pelicula.slug,
+      clasificacion: pelicula.clasificacion,
       fecha: f.fecha,
       hora: f.hora.slice(0, 5),
       sala: sala.nombre,
@@ -109,6 +112,20 @@ export async function getFuncionCompra(idFuncion: number): Promise<FuncionConPre
     },
     precios,
   };
+}
+
+/**
+ * Validación para bloquear niños en películas clasificadas como B15 o C.
+ * SCRUM-123: las películas con estas clasificaciones no permiten entrada de niños.
+ */
+export function validarClasificacionNiños(cantidades: Cantidades, clasificacion: string): string | null {
+  if ([B15, C].includes(clasificacion)) {
+    const cantidadNinos = cantidades.ninos;
+    if (cantidadNinos > 0) {
+      return `Las películas clasificadas como ${clasificacion} no permiten la entrada de Niños.`;
+    }
+  }
+  return null;
 }
 
 /** quetzales -> centavos enteros (los montos se suman en centavos para no arrastrar decimales). */
@@ -143,6 +160,9 @@ export async function calcularResumenCompra(
       importe: (unitario * cantidad) / 100,
     };
   });
+
+  const errorClasificacion = validarClasificacionNiños(cantidades, datos.funcion.clasificacion);
+  if (errorClasificacion) return { ok: false, error: errorClasificacion };
 
   const subtotal = lineas.reduce((s, l) => s + aCentavos(l.importe), 0);
   const recargo = Math.round((subtotal * PORCENTAJE_RECARGO) / 100);
