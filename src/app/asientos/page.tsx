@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import { cantidadesDeParams } from "@/lib/compra";
 import { calcularResumenCompra } from "@/lib/db/compra";
+import {
+  getAsientosOcupadosFuncion,
+  getDistribucionAsientos,
+} from "@/lib/db/asientos";
+import { createClient } from "@/lib/supabase/server";
 import { num, str, type SP } from "@/lib/search-params";
 import { AsientosClient } from "./asientos-client";
+import type { AsientoRow } from "@/lib/db-types";
 
 export const dynamic = "force-dynamic"; // el resumen depende de la función, sus precios y la hora
 
@@ -22,6 +28,9 @@ export const metadata: Metadata = {
  *
  * `slug`, `hall`, `time` y `format` ya no vienen de /entradas: se derivan de la función real
  * para que el mapa (SCRUM-118) y /pago (SCRUM-124) sigan recibiendo lo mismo que antes.
+ *
+ * SCRUM-118: además se trae la distribución real de asientos de la sala desde la BD y los
+ * asientos ya ocupados (bloqueados/reservados) para esta función.
  */
 export default async function Page({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
@@ -29,6 +38,30 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
   const cantidades = cantidadesDeParams(sp);
   const resultado = await calcularResumenCompra(idFuncion, cantidades);
   const funcion = resultado.ok ? resultado.resumen.funcion : null;
+
+  let distribucion: AsientoRow[] = [];
+  let asientosOcupados: number[] = [];
+
+  if (funcion) {
+    // Obtener id_sala de la función (no lo devuelve calcularResumenCompra directamente).
+    const supabase = await createClient();
+    const { data: funRow } = await supabase
+      .from("funcion")
+      .select("id_sala")
+      .eq("id", idFuncion)
+      .maybeSingle();
+
+    const idSala = funRow?.id_sala ?? null;
+
+    if (idSala != null) {
+      const [dist, ocup] = await Promise.all([
+        getDistribucionAsientos(idSala),
+        getAsientosOcupadosFuncion(idFuncion),
+      ]);
+      distribucion = dist;
+      asientosOcupados = ocup;
+    }
+  }
 
   return (
     <AsientosClient
@@ -42,6 +75,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       idFuncion={idFuncion}
       resumen={resultado.ok ? resultado.resumen : null}
       errorResumen={resultado.ok ? null : resultado.error}
+      distribucion={distribucion}
+      asientosOcupados={asientosOcupados}
     />
   );
 }

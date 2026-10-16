@@ -81,3 +81,27 @@ export async function salaTieneFuncionesActivas(
 
   return (count ?? 0) > 0;
 }
+
+/**
+ * SCRUM-118: asientos ocupados (bloqueados o reservados) de una función.
+ * Devuelve los `id_asiento` que no están disponibles para seleccionar.
+ * Lee con service role porque `detalle_reserva` solo concede SELECT a
+ * authenticated y ALL a service_role.
+ */
+export async function getAsientosOcupadosFuncion(
+  idFuncion: number,
+): Promise<number[]> {
+  const admin = createAdminClient();
+
+  const { data, error } = await admin
+    .from("detalle_reserva")
+    .select("id_asiento")
+    .eq("id_funcion", idFuncion)
+    .in("estado", ["bloqueado", "reservado"]);
+
+  if (error) {
+    throw new Error(`detalle_reserva: ${error.message}`);
+  }
+
+  return (data as { id_asiento: number }[]).map((d) => d.id_asiento);
+}

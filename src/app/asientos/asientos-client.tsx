@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
-import { COLS, ROWS, getPreselected, getReserved } from "@/lib/cinema-data";
 import {
   etiquetaFuncion,
   fechaCortaFuncion,
@@ -12,6 +11,7 @@ import {
   salaFuncion,
   type ResumenCompra,
 } from "@/lib/compra";
+import type { AsientoRow } from "@/lib/db-types";
 import { toHref } from "@/lib/search-params";
 
 type Props = {
@@ -26,45 +26,120 @@ type Props = {
   idFuncion: number;
   resumen: ResumenCompra | null;
   errorResumen: string | null;
+  /** SCRUM-118: distribución física de asientos de la sala (desde BD). */
+  distribucion: AsientoRow[];
+  /** SCRUM-118: ids de asientos ya ocupados (bloqueados/reservados) para esta función. */
+  asientosOcupados: number[];
 };
 
-const SEAT_CAP = 10;
+const SEAT_SIZE = "h-8 w-8";
+const SEAT_RADIUS = "rounded-[4px]";
 
 export function AsientosClient(search: Props) {
-  const slug = search.slug || "batman";
-  const { resumen, errorResumen } = search;
-  const reserved = getReserved(slug);
+  const {
+    slug,
+    hall,
+    time,
+    format,
+    adulto,
+    tercera,
+    ninos,
+    idFuncion,
+    resumen,
+    errorResumen,
+    distribucion,
+    asientosOcupados,
+  } = search;
 
-  const tickets = search.adulto + search.tercera + search.ninos;
-  const maxSeats = tickets > 0 ? Math.min(SEAT_CAP, tickets) : SEAT_CAP;
+  const totalEntradas = adulto + tercera + ninos;
 
-  const [selected, setSelected] = useState<string[]>(() =>
-    getPreselected(slug).slice(0, maxSeats),
-  );
+  // Agrupa asientos por fila para dibujar el mapa.
+  const asientosPorFila = new Map<string, AsientoRow[]>();
+  for (const asiento of distribucion) {
+    const lista = asientosPorFila.get(asiento.fila) ?? [];
+    lista.push(asiento);
+    asientosPorFila.set(asiento.fila, lista);
+  }
+  const filasOrdenadas = Array.from(asientosPorFila.keys()).sort();
+
+  const setOcupados = new Set(asientosOcupados);
+
+  const [selected, setSelected] = useState<string[]>([]);
   const [limitReached, setLimitReached] = useState(false);
 
-  const toggle = (seat: string) => {
-    if (reserved.includes(seat)) return;
+  const esOcupado = (fila: string, numero: number) =>
+    setOcupados.has(
+      distribucion.find((a) => a.fila === fila && a.numero === numero)?.id ?? -1,
+    );
+
+  const seatKey = (fila: string, numero: number) => `${fila}${numero}`;
+
+  const estaSeleccionado = (fila: string, numero: number) =>
+    selected.includes(seatKey(fila, numero));
+
+  const toggle = (fila: string, numero: number) => {
+    if (esOcupado(fila, numero)) return; // no se puede seleccionar un asiento ocupado
+
+    const key = seatKey(fila, numero);
+
     setSelected((s) => {
-      if (s.includes(seat)) {
+      if (s.includes(key)) {
         setLimitReached(false);
-        return s.filter((x) => x !== seat);
+        return s.filter((x) => x !== key);
       }
-      if (s.length >= maxSeats) {
+      if (s.length >= totalEntradas) {
         setLimitReached(true);
         return s;
       }
-      return [...s, seat];
+      return [...s, key];
+    });
+  };
+
+  const cantidadSeleccionada = selected.length;
+  const seleccionCompleta = cantidadSeleccionada === totalEntradas && totalEntradas > 0;
+
+  // Ordena asientos por fila ascendente (case-insensitive) y luego por número ascendente.
+  // Ejemplo: F10, F2, F6, F5 -> F2, F5, F6, F10
+  const ordenarAsientos = (asientos: string[]): string[] => {
+    return [...asientos].sort((a, b) => {
+      const matchA = /^([A-Za-z]+)(\d+)$/.exec(a);
+      const matchB = /^([A-Za-z]+)(\d+)$/.exec(b);
+
+      if (!matchA || !matchB) return a.localeCompare(b);
+
+      const [, filaA = "", numA = "0"] = matchA;
+      const [, filaB = "", numB = "0"] = matchB;
+
+      const cmpFila = filaA.toLowerCase().localeCompare(filaB.toLowerCase());
+      if (cmpFila !== 0) return cmpFila;
+
+      return Number(numA) - Number(numB);
     });
   };
 
   // Para "Cancelar": volver a /entradas con la misma función y cantidades.
   const volverAEntradas = toHref("/entradas", {
-    funcion: search.idFuncion,
-    adulto: search.adulto,
-    tercera: search.tercera,
-    ninos: search.ninos,
+    funcion: idFuncion,
+    adulto,
+    tercera,
+    ninos,
   });
+
+  // Para "Continuar": llevar los asientos seleccionados al siguiente paso.
+  const continuarHref = seleccionCompleta
+    ? toHref("/pago", {
+        slug,
+        hall,
+        time,
+        format,
+        seats: selected.join(","),
+        total: resumen?.total ?? 0,
+        funcion: idFuncion,
+        adulto,
+        tercera,
+        ninos,
+      })
+    : null;
 
   return (
     <div className="min-h-screen">
@@ -91,45 +166,66 @@ export function AsientosClient(search: Props) {
 
             <div className="overflow-x-auto">
               <div className="mx-auto w-fit">
-                {ROWS.map((row) => (
-                  <div key={row} className="mb-1.5 flex items-center gap-2">
-                    <span className="w-4 text-xs text-muted-foreground">{row}</span>
+                {filasOrdenadas.map((fila) => (
+                  <div key={fila} className="mb-1.5 flex items-center gap-2">
+                    <span className="w-4 text-xs text-muted-foreground">{fila}</span>
                     <div className="flex gap-1.5">
-                      {COLS.map((col) => {
-                        const seat = `${row}${col}`;
-                        const isReserved = reserved.includes(seat);
-                        const isSelected = selected.includes(seat);
+                      {asientosPorFila.get(fila)?.map((asiento) => {
+                        const ocupado = esOcupado(asiento.fila, asiento.numero);
+                        const seleccionado = estaSeleccionado(
+                          asiento.fila,
+                          asiento.numero,
+                        );
+                        const clave = seatKey(asiento.fila, asiento.numero);
+
+                        if (asiento.estado !== "normal") {
+                          return (
+                            <button
+                              key={clave}
+                              type="button"
+                              disabled
+                              aria-label={`${asiento.fila}${asiento.numero} — ${asiento.estado}`}
+                              className={`flex h-8 w-8 select-none items-center justify-center rounded-[4px] border text-[11px] font-medium transition-all cursor-not-allowed opacity-70 ${
+                                asiento.estado === "pasillo"
+                                  ? "border-dashed border-border bg-transparent text-muted-foreground/50"
+                                  : "border-transparent bg-muted-foreground/60 text-background"
+                              }`}
+                            >
+                              {asiento.estado === "pasillo" ? "·" : "×"}
+                            </button>
+                          );
+                        }
+
+                        const isReserved = ocupado;
+                        const isSelected = seleccionado;
+
                         return (
                           <button
-                            key={seat}
-                            onClick={() => toggle(seat)}
-                            aria-label={`Asiento ${seat}`}
-                            className={`h-5 w-5 rounded-[4px] border transition-all ${
+                            key={clave}
+                            type="button"
+                            onClick={() => toggle(asiento.fila, asiento.numero)}
+                            aria-label={
                               isReserved
-                                ? "cursor-not-allowed border-transparent bg-muted-foreground/60"
+                                ? `${asiento.fila}${asiento.numero} — Ocupado`
+                                : `${asiento.fila}${asiento.numero} — ${
+                                    isSelected ? "Seleccionado" : "Disponible"
+                                  }`
+                            }
+                            className={`flex h-8 w-8 select-none items-center justify-center rounded-[4px] border text-[11px] font-medium transition-all ${
+                              isReserved
+                                ? "border-transparent bg-muted-foreground/60 text-background cursor-not-allowed opacity-70"
                                 : isSelected
-                                  ? "border-primary bg-primary"
-                                  : "border-border bg-surface-2 hover:border-primary hover:bg-primary/30"
+                                ? "border-primary bg-primary text-primary hover:border-primary hover:bg-primary/90 cursor-pointer"
+                                : "border-primary/50 bg-primary/10 text-primary hover:border-primary hover:bg-primary/20 cursor-pointer"
                             }`}
-                          />
+                          >
+                            {asiento.numero}
+                          </button>
                         );
                       })}
                     </div>
                   </div>
                 ))}
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="w-4" />
-                  <div className="flex gap-1.5">
-                    {COLS.map((c) => (
-                      <span
-                        key={c}
-                        className="w-5 text-center text-[10px] text-muted-foreground"
-                      >
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
           </section>
@@ -157,12 +253,12 @@ export function AsientosClient(search: Props) {
             <p className="text-lg">
               Selección:{" "}
               <span className="font-semibold text-primary">
-                {selected.length ? selected.join(", ") : "—"}
+                {selected.length ? ordenarAsientos(selected).join(", ") : "—"}
               </span>
             </p>
             {limitReached && (
               <p className="mt-2 text-sm text-primary">
-                Has alcanzado el límite máximo de {maxSeats} asientos.
+                Has alcanzado el límite máximo de {totalEntradas} asientos.
               </p>
             )}
 
@@ -216,23 +312,9 @@ export function AsientosClient(search: Props) {
               <Link href={volverAEntradas} className="btn-ghost flex-1">
                 Cancelar
               </Link>
-              {resumen ? (
-                // TODO SCRUM-124: /pago debe recalcular el total con `calcularResumenCompra`
-                // (con `funcion` y las cantidades que ya viajan aquí) en lugar de confiar en el
-                // parámetro `total` de la URL, que el usuario puede editar.
+              {seleccionCompleta && continuarHref ? (
                 <Link
-                  href={toHref("/pago", {
-                    slug,
-                    hall: search.hall,
-                    time: search.time,
-                    format: search.format,
-                    seats: selected.join(","),
-                    total: resumen.total,
-                    funcion: search.idFuncion,
-                    adulto: search.adulto,
-                    tercera: search.tercera,
-                    ninos: search.ninos,
-                  })}
+                  href={continuarHref}
                   className="btn-primary flex-1"
                 >
                   Continuar
