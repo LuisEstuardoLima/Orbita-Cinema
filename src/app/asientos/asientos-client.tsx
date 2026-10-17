@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { bloquearAsientosSeleccion, liberarBloqueo } from "./actions";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import {
@@ -30,6 +32,8 @@ type Props = {
   distribucion: AsientoRow[];
   /** SCRUM-118: ids de asientos ya ocupados (bloqueados/reservados) para esta función. */
   asientosOcupados: number[];
+  /** SCRUM-119: true cuando el cliente vuelve porque su bloqueo de 5 minutos venció. */
+  avisoVencido?: boolean;
 };
 
 const SEAT_SIZE = "h-8 w-8";
@@ -49,7 +53,9 @@ export function AsientosClient(search: Props) {
     errorResumen,
     distribucion,
     asientosOcupados,
+    avisoVencido = false,
   } = search;
+  const router = useRouter();
 
   const totalEntradas = adulto + tercera + ninos;
 
@@ -66,6 +72,28 @@ export function AsientosClient(search: Props) {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [limitReached, setLimitReached] = useState(false);
+  const [bloqueando, setBloqueando] = useState(false);
+  const [errorBloqueo, setErrorBloqueo] = useState<string | null>(null);
+
+  // SCRUM-119 (criterio 6): si el cliente regresó aquí desde el pago, sus asientos bloqueados
+  // se liberan de inmediato. La página ya no los cuenta como ocupados para él.
+  useEffect(() => {
+    void liberarBloqueo();
+  }, []);
+
+  // Si al refrescar otro cliente tomó un asiento que yo tenía elegido, se quita de mi selección.
+  useEffect(() => {
+    const ocupados = new Set(asientosOcupados);
+    setSelected((s) =>
+      s.filter((key) => {
+        const m = /^([A-Za-z]+)(\d+)$/.exec(key);
+        const id = m
+          ? distribucion.find((a) => a.fila === m[1] && a.numero === Number(m[2]))?.id
+          : undefined;
+        return id === undefined || !ocupados.has(id);
+      }),
+    );
+  }, [asientosOcupados, distribucion]);
 
   const esOcupado = (fila: string, numero: number) =>
     setOcupados.has(
@@ -141,6 +169,26 @@ export function AsientosClient(search: Props) {
       })
     : null;
 
+  // SCRUM-119 (criterio 1): "Continuar" bloquea los asientos 5 minutos a nombre del cliente y
+  // solo entonces pasa al pago. Si otro cliente se adelantó, avisa y recarga el mapa.
+  const continuar = async () => {
+    if (!continuarHref || bloqueando) return;
+    setBloqueando(true);
+    setErrorBloqueo(null);
+    const res = await bloquearAsientosSeleccion({
+      idFuncion,
+      cantidades: { adulto, tercera, ninos },
+      asientos: selected,
+    });
+    if (!res.ok) {
+      setErrorBloqueo(res.error);
+      setBloqueando(false);
+      router.refresh();
+      return;
+    }
+    router.push(continuarHref);
+  };
+
   return (
     <div className="min-h-screen">
       <SiteHeader />
@@ -153,6 +201,16 @@ export function AsientosClient(search: Props) {
               : "Vuelve a la cartelera para elegir otra función."
           }
         />
+
+        {avisoVencido && (
+          <p
+            role="alert"
+            className="mb-6 rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            El tiempo para completar tu compra venció y tus asientos fueron liberados. Elige tus
+            asientos de nuevo.
+          </p>
+        )}
 
         <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
           <section className="card-surface p-6">
@@ -308,17 +366,25 @@ export function AsientosClient(search: Props) {
               </div>
             )}
 
+            {errorBloqueo && (
+              <p role="alert" className="mt-4 text-sm text-destructive">
+                {errorBloqueo}
+              </p>
+            )}
+
             <div className="mt-6 flex gap-3">
               <Link href={volverAEntradas} className="btn-ghost flex-1">
                 Cancelar
               </Link>
               {seleccionCompleta && continuarHref ? (
-                <Link
-                  href={continuarHref}
+                <button
+                  type="button"
+                  onClick={continuar}
+                  disabled={bloqueando}
                   className="btn-primary flex-1"
                 >
-                  Continuar
-                </Link>
+                  {bloqueando ? "Bloqueando asientos..." : "Continuar"}
+                </button>
               ) : (
                 <span
                   aria-disabled="true"

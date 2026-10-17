@@ -83,25 +83,32 @@ export async function salaTieneFuncionesActivas(
 }
 
 /**
- * SCRUM-118: asientos ocupados (bloqueados o reservados) de una función.
- * Devuelve los `id_asiento` que no están disponibles para seleccionar.
- * Lee con service role porque `detalle_reserva` solo concede SELECT a
- * authenticated y ALL a service_role.
+ * SCRUM-118 / SCRUM-119: asientos NO disponibles de una función, como `id_asiento`.
+ *
+ * Cuentan los ya reservados (pagados) y los bloqueados por una compra en curso que TODAVÍA no
+ * vence: un bloqueo vencido no cuenta, así los asientos vuelven a estar libres para todos
+ * (función SQL `asientos_no_disponibles`, ver supabase/sprint3-bloqueo-asientos.sql).
+ *
+ * `excluirToken`: no cuenta el bloqueo de ese cliente, para que al regresar a elegir asientos
+ * no vea los suyos como ocupados.
+ *
+ * Lee con service role porque `detalle_reserva` solo concede SELECT a authenticated y ALL a
+ * service_role.
  */
 export async function getAsientosOcupadosFuncion(
   idFuncion: number,
+  excluirToken: string | null = null,
 ): Promise<number[]> {
   const admin = createAdminClient();
 
-  const { data, error } = await admin
-    .from("detalle_reserva")
-    .select("id_asiento")
-    .eq("id_funcion", idFuncion)
-    .in("estado", ["bloqueado", "reservado"]);
+  const { data, error } = await admin.rpc("asientos_no_disponibles", {
+    p_funcion: idFuncion,
+    p_excluir_token: excluirToken,
+  });
 
   if (error) {
-    throw new Error(`detalle_reserva: ${error.message}`);
+    throw new Error(`asientos_no_disponibles: ${error.message}`);
   }
 
-  return (data as { id_asiento: number }[]).map((d) => d.id_asiento);
+  return (data as number[] | null) ?? [];
 }

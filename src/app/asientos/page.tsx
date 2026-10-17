@@ -6,6 +6,7 @@ import {
   getDistribucionAsientos,
 } from "@/lib/db/asientos";
 import { createClient } from "@/lib/supabase/server";
+import { getTokenBloqueo } from "@/lib/db/bloqueo";
 import { num, str, type SP } from "@/lib/search-params";
 import { AsientosClient } from "./asientos-client";
 import type { AsientoRow } from "@/lib/db-types";
@@ -56,7 +57,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
     if (idSala != null) {
       const [dist, ocup] = await Promise.all([
         getDistribucionAsientos(idSala),
-        getAsientosOcupadosFuncion(idFuncion),
+        // SCRUM-119: el bloqueo vigente de OTROS clientes cuenta como ocupado; el propio no.
+        getAsientosOcupadosFuncion(idFuncion, await getTokenBloqueo()),
       ]);
       distribucion = dist;
       asientosOcupados = ocup;
@@ -77,6 +79,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       errorResumen={resultado.ok ? null : resultado.error}
       distribucion={distribucion}
       asientosOcupados={asientosOcupados}
+      avisoVencido={str(sp["vencido"]) === "1"}
     />
   );
 }

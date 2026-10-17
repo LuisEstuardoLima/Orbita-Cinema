@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle2, X } from "lucide-react";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import { Modal } from "@/components/cinema/Modal";
 import { buildFunctionLabel, getMovie } from "@/lib/cinema-data";
+import { ContadorBloqueo } from "@/components/cinema/ContadorBloqueo";
+import type { Cantidades } from "@/lib/compra";
+import { toHref } from "@/lib/search-params";
+import { liberarBloqueo, verificarBloqueo } from "@/app/asientos/actions";
 
 type Props = {
   slug: string;
@@ -15,6 +20,10 @@ type Props = {
   format: string;
   seats: string;
   total: number;
+  /** SCRUM-119: función, cantidades (para volver a /asientos) y tiempo que le queda al bloqueo. */
+  idFuncion: number;
+  cantidades: Cantidades;
+  segundosRestantes: number;
 };
 
 export function PagoClient(search: Props) {
@@ -22,6 +31,35 @@ export function PagoClient(search: Props) {
   const [done, setDone] = useState(false);
   const [factura, setFactura] = useState("C/F");
   const [showMember, setShowMember] = useState(true);
+  const router = useRouter();
+  const [ocupado, setOcupado] = useState(false);
+
+  // Vuelve a elegir asientos; con `vencido` muestra el aviso de que se agotó el tiempo.
+  const hrefAsientos = (vencido: boolean) =>
+    toHref("/asientos", {
+      funcion: search.idFuncion,
+      ...search.cantidades,
+      ...(vencido ? { vencido: 1 } : {}),
+    });
+
+  // Criterio 6: regresar o cancelar libera los asientos de inmediato.
+  const salir = async (destino: string) => {
+    setOcupado(true);
+    await liberarBloqueo();
+    router.push(destino);
+  };
+
+  // Criterio 5: si el bloqueo venció antes de pagar, avisa y regresa a elegir asientos.
+  const pagar = async () => {
+    setOcupado(true);
+    const r = await verificarBloqueo(search.idFuncion);
+    if (!r.ok) {
+      router.replace(hrefAsientos(true));
+      return;
+    }
+    setOcupado(false);
+    setDone(true);
+  };
 
   return (
     <div className="min-h-screen">
@@ -31,6 +69,31 @@ export function PagoClient(search: Props) {
           title={movie.title}
           subtitle={buildFunctionLabel(search.hall, search.time, search.format)}
         />
+
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <ContadorBloqueo
+            segundosIniciales={search.segundosRestantes}
+            onVencido={() => router.replace(hrefAsientos(true))}
+          />
+          <div className="flex gap-3">
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={ocupado}
+              onClick={() => salir(hrefAsientos(false))}
+            >
+              Cambiar asientos
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={ocupado}
+              onClick={() => salir("/")}
+            >
+              Cancelar compra
+            </button>
+          </div>
+        </div>
 
         <section
           className={`card-surface p-8 transition-all ${
@@ -118,8 +181,8 @@ export function PagoClient(search: Props) {
           </label>
 
           <div className="mt-6 flex justify-end">
-            <button className="btn-primary px-12" onClick={() => setDone(true)}>
-              Pagar
+            <button className="btn-primary px-12" onClick={pagar} disabled={ocupado}>
+              {ocupado ? "Verificando..." : "Pagar"}
             </button>
           </div>
         </section>

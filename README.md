@@ -150,6 +150,18 @@ Un asiento **pertenece a la sala** (`id_sala` → `sala`), **no a una función**
 
 **No se re-configura el plano si la sala tiene funciones activas.** Guardar la distribución hace borrado + reinserción de todo el plano; hacerlo con una función futura activa podría mover o pasillizar un asiento ya implicado. El configurador queda en solo lectura con un aviso. (Es la versión actual de "ya tiene reservas" del ticket; cuando exista `reserva` se refina a "funciones con reservas".)
 
+## Bloqueo temporal de asientos (SCRUM-119)
+
+Al presionar **Continuar** en `/asientos`, los asientos elegidos quedan bloqueados 5 minutos a nombre de ese cliente. **Antes de usarlo hay que ejecutar una vez `supabase/sprint3-bloqueo-asientos.sql` en el SQL Editor de Supabase** (agrega `reserva.token_sesion`, un índice único parcial y cinco funciones; es idempotente). Sin ese script, "Continuar" muestra un error.
+
+- **Tablas:** usa las que ya existen. El bloqueo es una `reserva` en `pendiente_pago` (su `fecha_expiracion` es `now() + 5 min`) con un `detalle_reserva` en `bloqueado` por asiento. Los tipos de entrada se traducen a los valores de la BD (`tercera` → `tercera_edad`, `ninos` → `nino`; `lib/bloqueo.ts`).
+- **Dueño del bloqueo:** una cookie `httpOnly` (`orbita_bloqueo`, un uuid aleatorio) que crea el servidor y se guarda en `reserva.token_sesion`. Vale para cliente registrado e invitado; nunca se confía en un id que venga de la URL.
+- **Sin carreras:** `bloquear_asientos` hace todo en una transacción y el índice único `(id_funcion, id_asiento)` sobre `bloqueado/reservado` impide que dos clientes tomen el mismo asiento; si otro se adelantó, el cliente recibe un aviso y el mapa se recarga.
+- **Otros clientes:** `asientos_no_disponibles` cuenta como ocupados los reservados y los bloqueos que todavía no vencen. Un bloqueo vencido **no cuenta**, así que los asientos quedan libres a la hora exacta sin depender de ningún proceso. La próxima compra de esa función, o `liberar_bloqueos_vencidos()`, además marca la reserva como `expirada` (al final del script hay un `pg_cron` opcional para correrla cada minuto).
+- **Contador y vencimiento:** `/pago` solo abre con un bloqueo vigente de ese navegador y muestra un contador regresivo (los segundos los calcula la BD). Al llegar a cero, o si se intenta **Pagar** con el bloqueo vencido, avisa y regresa a `/asientos?vencido=1`.
+- **Regresar o cancelar:** "Cambiar asientos" y "Cancelar compra" en `/pago`, y volver a `/asientos`, llaman a `liberar_bloqueo` y los asientos se liberan al instante.
+- **Pendiente para SCRUM-123/124/125:** mientras el comprador invitado no capture sus datos, la reserva guarda `Invitado (pendiente)` / `pendiente@invitado.invalid` (la BD exige nombre y correo no vacíos). Al pagar hay que actualizarlos y pasar `reserva.estado` a `confirmada` y `detalle_reserva.estado` a `reservado`. El pago actual (`/pago`) sigue siendo un prototipo.
+
 ## Capa de venta `reserva` — para el Sprint 3 (aún no existe)
 
 Anotado aquí para retomarlo, **sin crear la tabla todavía** porque sus reglas aún no están definidas.
