@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { calcularResumenCompra } from "@/lib/db/compra";
-import { getDistribucionAsientos } from "@/lib/db/asientos";
+import { getAsientosOcupadosFuncion, getDistribucionAsientos } from "@/lib/db/asientos";
 import {
   getBloqueoVigente,
   getTokenBloqueo,
@@ -140,6 +140,21 @@ export async function bloquearAsientosSeleccion(input: {
 
   await guardarTokenBloqueo(token);
   return { ok: true, segundos: fila.out_segundos };
+}
+
+/**
+ * SCRUM-120 (criterios 1 y 2): ocupación actual de la función, para que el mapa se actualice
+ * sin recargar. Cuenta reservados y bloqueos vigentes de OTROS clientes; un bloqueo vencido ya
+ * no cuenta (la BD compara con su propio reloj), así que el asiento reaparece libre.
+ * Solo devuelve ids de asiento: no expone datos de compradores.
+ */
+export async function consultarOcupacion(idFuncion: number): Promise<number[] | null> {
+  if (!Number.isInteger(idFuncion) || idFuncion <= 0) return null;
+  try {
+    return await getAsientosOcupadosFuncion(idFuncion, await getTokenBloqueo());
+  } catch {
+    return null; // fallo momentáneo: el cliente conserva lo que ya muestra
+  }
 }
 
 /** Criterio 6: libera de inmediato los asientos bloqueados de este cliente (regresar o cancelar). */

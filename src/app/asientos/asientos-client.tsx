@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { bloquearAsientosSeleccion, liberarBloqueo } from "./actions";
+import { bloquearAsientosSeleccion, consultarOcupacion, liberarBloqueo } from "./actions";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import {
@@ -35,6 +35,9 @@ type Props = {
   /** SCRUM-119: true cuando el cliente vuelve porque su bloqueo de 5 minutos venció. */
   avisoVencido?: boolean;
 };
+
+/** SCRUM-120: cada cuántos ms se consulta la ocupación mientras la pestaña está visible. */
+const INTERVALO_OCUPACION_MS = 3000;
 
 const SEAT_SIZE = "h-8 w-8";
 const SEAT_RADIUS = "rounded-[4px]";
@@ -68,9 +71,12 @@ export function AsientosClient(search: Props) {
   }
   const filasOrdenadas = Array.from(asientosPorFila.keys()).sort();
 
-  const setOcupados = new Set(asientosOcupados);
+  // SCRUM-120: la ocupación arranca con lo que trajo el servidor y se mantiene al día sola.
+  const [ocupadosIds, setOcupadosIds] = useState<number[]>(asientosOcupados);
+  const setOcupados = new Set(ocupadosIds);
 
   const [selected, setSelected] = useState<string[]>([]);
+  const [avisoTomados, setAvisoTomados] = useState<string[]>([]);
   const [limitReached, setLimitReached] = useState(false);
   const [bloqueando, setBloqueando] = useState(false);
   const [errorBloqueo, setErrorBloqueo] = useState<string | null>(null);
@@ -81,19 +87,61 @@ export function AsientosClient(search: Props) {
     void liberarBloqueo();
   }, []);
 
-  // Si al refrescar otro cliente tomó un asiento que yo tenía elegido, se quita de mi selección.
+  // Si el servidor entrega otra ocupación (p. ej. tras router.refresh), se adopta.
   useEffect(() => {
-    const ocupados = new Set(asientosOcupados);
-    setSelected((s) =>
-      s.filter((key) => {
-        const m = /^([A-Za-z]+)(\d+)$/.exec(key);
-        const id = m
-          ? distribucion.find((a) => a.fila === m[1] && a.numero === Number(m[2]))?.id
-          : undefined;
-        return id === undefined || !ocupados.has(id);
-      }),
-    );
-  }, [asientosOcupados, distribucion]);
+    setOcupadosIds(asientosOcupados);
+  }, [asientosOcupados]);
+
+  // SCRUM-120 (criterios 1 y 2): consulta la ocupación cada pocos segundos y al volver a la
+  // pestaña. Un asiento que otro cliente bloquea o reserva pasa a "Ocupado"; uno cuyo bloqueo
+  // venció vuelve a verse libre. Sin recargar la página.
+  const consultando = useRef(false);
+  const actualizarOcupacion = useCallback(async () => {
+    if (consultando.current || idFuncion <= 0) return;
+    consultando.current = true;
+    try {
+      const ids = await consultarOcupacion(idFuncion);
+      if (ids) {
+        setOcupadosIds((prev) => {
+          const igual = prev.length === ids.length && prev.every((id) => ids.includes(id));
+          return igual ? prev : ids;
+        });
+      }
+    } finally {
+      consultando.current = false;
+    }
+  }, [idFuncion]);
+
+  useEffect(() => {
+    if (idFuncion <= 0) return;
+    const alVolver = () => {
+      if (!document.hidden) void actualizarOcupacion();
+    };
+    const timer = window.setInterval(alVolver, INTERVALO_OCUPACION_MS);
+    document.addEventListener("visibilitychange", alVolver);
+    window.addEventListener("focus", alVolver);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", alVolver);
+      window.removeEventListener("focus", alVolver);
+    };
+  }, [idFuncion, actualizarOcupacion]);
+
+  // Si otro cliente tomó un asiento que yo tenía elegido, se quita de mi selección y se avisa.
+  useEffect(() => {
+    const ocupados = new Set(ocupadosIds);
+    const tomados = selected.filter((key) => {
+      const m = /^([A-Za-z]+)(\d+)$/.exec(key);
+      const id = m
+        ? distribucion.find((a) => a.fila === m[1] && a.numero === Number(m[2]))?.id
+        : undefined;
+      return id !== undefined && ocupados.has(id);
+    });
+    if (tomados.length === 0) return;
+    setSelected((s) => s.filter((key) => !tomados.includes(key)));
+    setLimitReached(false);
+    setAvisoTomados(tomados);
+  }, [ocupadosIds, selected, distribucion]);
 
   const esOcupado = (fila: string, numero: number) =>
     setOcupados.has(
@@ -107,6 +155,7 @@ export function AsientosClient(search: Props) {
 
   const toggle = (fila: string, numero: number) => {
     if (esOcupado(fila, numero)) return; // no se puede seleccionar un asiento ocupado
+    setAvisoTomados([]);
 
     const key = seatKey(fila, numero);
 
@@ -183,7 +232,7 @@ export function AsientosClient(search: Props) {
     if (!res.ok) {
       setErrorBloqueo(res.error);
       setBloqueando(false);
-      router.refresh();
+      void actualizarOcupacion(); // el mapa muestra ya lo que tomó el otro cliente
       return;
     }
     router.push(continuarHref);
@@ -209,6 +258,18 @@ export function AsientosClient(search: Props) {
           >
             El tiempo para completar tu compra venció y tus asientos fueron liberados. Elige tus
             asientos de nuevo.
+          </p>
+        )}
+
+        {avisoTomados.length > 0 && (
+          <p
+            role="alert"
+            className="mb-6 rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            {avisoTomados.length === 1
+              ? `El asiento ${avisoTomados[0]} acaba de ser tomado por otra persona.`
+              : `Los asientos ${avisoTomados.join(", ")} acaban de ser tomados por otra persona.`}{" "}
+            Elige otro para continuar.
           </p>
         )}
 

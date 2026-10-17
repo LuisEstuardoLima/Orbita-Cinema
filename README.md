@@ -162,6 +162,14 @@ Al presionar **Continuar** en `/asientos`, los asientos elegidos quedan bloquead
 - **Regresar o cancelar:** "Cambiar asientos" y "Cancelar compra" en `/pago`, y volver a `/asientos`, llaman a `liberar_bloqueo` y los asientos se liberan al instante.
 - **Pendiente para SCRUM-123/124/125:** mientras el comprador invitado no capture sus datos, la reserva guarda `Invitado (pendiente)` / `pendiente@invitado.invalid` (la BD exige nombre y correo no vacíos). Al pagar hay que actualizarlos y pasar `reserva.estado` a `confirmada` y `detalle_reserva.estado` a `reservado`. El pago actual (`/pago`) sigue siendo un prototipo.
 
+## Ocupación en tiempo real y doble reserva (SCRUM-120)
+
+No requiere script SQL nuevo: se apoya en lo de SCRUM-119 (`supabase/sprint3-bloqueo-asientos.sql`).
+
+- **Mapa en vivo:** mientras `/asientos` está abierto, el cliente consulta cada 3 segundos la acción de servidor `consultarOcupacion` (y también al volver a la pestaña). Un asiento que otro cliente bloquea o reserva pasa a "Ocupado" sin recargar; si su bloqueo vence, vuelve a verse libre, porque la BD compara con su propio reloj. Se eligió sondeo y no Supabase Realtime a propósito: `detalle_reserva` no es legible con la clave pública, y abrirla solo para esto expondría datos de compras. La acción devuelve únicamente ids de asiento.
+- **Selección afectada:** si otro cliente toma un asiento que yo tenía elegido, se quita de mi selección y aparece un aviso para elegir otro.
+- **Doble reserva:** el índice único parcial `uq_detalle_reserva_asiento_funcion_activo` (`id_funcion`, `id_asiento` donde el detalle está `bloqueado` o `reservado`) hace que la BD rechace un segundo registro sobre el mismo asiento, aunque falle cualquier validación de la aplicación. Si dos clientes pulsan **Continuar** a la vez, `bloquear_asientos` deja pasar solo a uno; el otro recibe "Alguno de los asientos acaba de ser tomado" y el mapa se actualiza al instante.
+
 ## Capa de venta `reserva` — para el Sprint 3 (aún no existe)
 
 Anotado aquí para retomarlo, **sin crear la tabla todavía** porque sus reglas aún no están definidas.
