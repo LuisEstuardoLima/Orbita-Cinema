@@ -267,9 +267,8 @@ export function AsientosClient(search: Props) {
             className="mb-6 rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive"
           >
             {avisoTomados.length === 1
-              ? `El asiento ${avisoTomados[0]} acaba de ser tomado por otra persona.`
-              : `Los asientos ${avisoTomados.join(", ")} acaban de ser tomados por otra persona.`}{" "}
-            Elige otro para continuar.
+              ? `El asiento ${avisoTomados[0]} ya se encuentra reservado. Selecciona otro para continuar.`
+              : `Los asientos ${avisoTomados.join(", ")} ya se encuentran reservados. Selecciona otros para continuar.`}
           </p>
         )}
 
