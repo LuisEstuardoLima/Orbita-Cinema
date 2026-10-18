@@ -13,6 +13,7 @@ import type { Metadata } from "next";
 import { exigirRol } from "@/lib/auth/pagina";
 import { ROLES_PANEL } from "@/lib/permisos";
 import { listFuncionesAdmin, listOpcionesFuncion } from "@/lib/db/funciones";
+import { type SP } from "@/lib/search-params";
 import { AdminFuncionesClient } from "./admin-funciones-client";
 
 export const dynamic = "force-dynamic";
@@ -28,13 +29,31 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<SP> }) {
   await exigirRol(ROLES_PANEL, "/admin/funciones");
+  const sp = await searchParams;
+  const params: {
+    fechaDesde?: string;
+    fechaHasta?: string;
+    estado?: "todas" | "activas" | "canceladas" | "finalizadas";
+  } = {};
+  if (sp["fechaDesde"]) params.fechaDesde = String(sp["fechaDesde"]);
+  if (sp["fechaHasta"]) params.fechaHasta = String(sp["fechaHasta"]);
+  if (sp["estado"]) params.estado = String(sp["estado"]) as "todas" | "activas" | "canceladas" | "finalizadas";
+
   const [{ hoy, funciones }, { peliculas, salas }] = await Promise.all([
-    listFuncionesAdmin(),
+    listFuncionesAdmin(params),
     listOpcionesFuncion(),
   ]);
   return (
-    <AdminFuncionesClient hoy={hoy} funciones={funciones} peliculas={peliculas} salas={salas} />
+    <AdminFuncionesClient
+      hoy={hoy}
+      funciones={funciones}
+      peliculas={peliculas}
+      salas={salas}
+      fechaDesde={params.fechaDesde ?? ""}
+      fechaHasta={params.fechaHasta ?? ""}
+      estado={params.estado ?? "todas"}
+    />
   );
 }

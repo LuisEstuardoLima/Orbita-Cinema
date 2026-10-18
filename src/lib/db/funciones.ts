@@ -34,13 +34,36 @@ export type FuncionAdmin = {
 export type OpcionPelicula = { id: number; titulo: string; duracion: number | null };
 export type OpcionSala = { id: number; nombre: string; tipo: string };
 
-/** Listado del panel: funciones desde hoy (activas y canceladas), por fecha y hora. */
-export async function listFuncionesAdmin(): Promise<{ hoy: string; funciones: FuncionAdmin[] }> {
+type EstadoFiltro = "todas" | "activas" | "canceladas" | "finalizadas";
+
+/**
+ * Listado del panel de funciones.
+ * Si se pasan `fechaDesde` y/o `fechaHasta`, filtra ese rango (incluye fechas pasadas).
+ * Si no se pasan fechas, default a hoy en adelante (comportamiento actual).
+ * `estado` filtra por activa / cancelada; "finalizadas" se calcula en el cliente.
+ */
+export async function listFuncionesAdmin(params?: {
+  fechaDesde?: string;
+  fechaHasta?: string;
+  estado?: EstadoFiltro;
+}): Promise<{ hoy: string; funciones: FuncionAdmin[] }> {
   const admin = createAdminClient();
   const hoy = ahoraGuatemala().fecha;
 
+  let consulta = admin.from("funcion").select("*").order("fecha").order("hora");
+
+  // Por defecto, desde hoy en adelante; si se pasa fechaDesde, se respeta ese rango.
+  if (params?.fechaDesde) {
+    consulta = consulta.gte("fecha", params.fechaDesde);
+  } else {
+    consulta = consulta.gte("fecha", hoy);
+  }
+  if (params?.fechaHasta) {
+    consulta = consulta.lte("fecha", params.fechaHasta);
+  }
+
   const [fun, pel, sal] = await Promise.all([
-    admin.from("funcion").select("*").gte("fecha", hoy).order("fecha").order("hora"),
+    consulta,
     admin.from("pelicula").select("id, titulo"),
     admin.from("sala").select("id, nombre"),
   ]);
@@ -55,20 +78,29 @@ export async function listFuncionesAdmin(): Promise<{ hoy: string; funciones: Fu
     (sal.data as Pick<SalaRow, "id" | "nombre">[]).map((s) => [s.id, s.nombre]),
   );
 
+  let filas = (fun.data as FuncionRow[]).map((f) => ({
+    id: f.id,
+    idPelicula: f.id_pelicula,
+    idSala: f.id_sala,
+    pelicula: (f.id_pelicula != null && titulos.get(f.id_pelicula)) || "—",
+    sala: (f.id_sala != null && salas.get(f.id_sala)) || "—",
+    fecha: f.fecha,
+    hora: f.hora.slice(0, 5),
+    idioma: f.idioma ?? "",
+    subtitulos: f.subtitulos ?? false,
+    activa: f.activa ?? false,
+  }));
+
+  // Filtro por estado en servidor para activas/canceladas.
+  if (params?.estado === "activas") {
+    filas = filas.filter((f) => f.activa);
+  } else if (params?.estado === "canceladas") {
+    filas = filas.filter((f) => !f.activa);
+  }
+
   return {
     hoy,
-    funciones: (fun.data as FuncionRow[]).map((f) => ({
-      id: f.id,
-      idPelicula: f.id_pelicula,
-      idSala: f.id_sala,
-      pelicula: (f.id_pelicula != null && titulos.get(f.id_pelicula)) || "—",
-      sala: (f.id_sala != null && salas.get(f.id_sala)) || "—",
-      fecha: f.fecha,
-      hora: f.hora.slice(0, 5),
-      idioma: f.idioma ?? "",
-      subtitulos: f.subtitulos ?? false,
-      activa: f.activa ?? false,
-    })),
+    funciones: filas,
   };
 }
 

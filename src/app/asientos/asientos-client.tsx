@@ -39,6 +39,9 @@ type Props = {
 /** SCRUM-120: cada cuántos ms se consulta la ocupación mientras la pestaña está visible. */
 const INTERVALO_OCUPACION_MS = 3000;
 
+/** Cuántos ms se muestra un aviso (compra vencida / asientos tomados) antes de ocultarse solo. */
+const DURACION_AVISO_MS = 9000;
+
 const SEAT_SIZE = "h-8 w-8";
 const SEAT_RADIUS = "rounded-[4px]";
 
@@ -80,6 +83,9 @@ export function AsientosClient(search: Props) {
   const [limitReached, setLimitReached] = useState(false);
   const [bloqueando, setBloqueando] = useState(false);
   const [errorBloqueo, setErrorBloqueo] = useState<string | null>(null);
+  // El aviso de compra vencida nace visible (viene de /pago) y se oculta solo pasados
+  // DURACION_AVISO_MS, para no dejarlo pegado en pantalla.
+  const [mostrarVencido, setMostrarVencido] = useState(avisoVencido);
 
   // SCRUM-119 (criterio 6): si el cliente regresó aquí desde el pago, sus asientos bloqueados
   // se liberan de inmediato. La página ya no los cuenta como ocupados para él.
@@ -142,6 +148,21 @@ export function AsientosClient(search: Props) {
     setLimitReached(false);
     setAvisoTomados(tomados);
   }, [ocupadosIds, selected, distribucion]);
+
+  // Los avisos no deben quedarse en pantalla todo el tiempo: solos se ocultan pasados
+  // DURACION_AVISO_MS. El de tomados se reinicia si vuelven a tomarme asientos, porque cada
+  // aviso nuevo es un array distinto.
+  useEffect(() => {
+    if (!avisoVencido) return;
+    const id = window.setTimeout(() => setMostrarVencido(false), DURACION_AVISO_MS);
+    return () => window.clearTimeout(id);
+  }, [avisoVencido]);
+
+  useEffect(() => {
+    if (avisoTomados.length === 0) return;
+    const id = window.setTimeout(() => setAvisoTomados([]), DURACION_AVISO_MS);
+    return () => window.clearTimeout(id);
+  }, [avisoTomados]);
 
   const esOcupado = (fila: string, numero: number) =>
     setOcupados.has(
@@ -251,7 +272,7 @@ export function AsientosClient(search: Props) {
           }
         />
 
-        {avisoVencido && (
+        {mostrarVencido && (
           <p
             role="alert"
             className="mb-6 rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive"

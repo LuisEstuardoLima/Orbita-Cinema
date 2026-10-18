@@ -214,6 +214,7 @@ export function AdminPeliculasClient({
                 <th className="px-4 py-3">Título</th>
                 <th className="px-4 py-3">Clasificación</th>
                 <th className="px-4 py-3">Género</th>
+                <th className="px-4 py-3">Duración</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3">Acciones</th>
               </tr>
@@ -243,6 +244,9 @@ export function AdminPeliculasClient({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{m.genero ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {m.duracion_min ? `${m.duracion_min} min` : "—"}
+                  </td>
                   {/* Estado (SCRUM-106): el interruptor cambia `activa` sin ocultar la fila;
                       para sacarla del listado está el botón Eliminar de la columna Acciones. */}
                   <td className="px-4 py-3">

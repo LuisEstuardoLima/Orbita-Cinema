@@ -75,25 +75,34 @@ export function AdminFuncionesClient({
   funciones,
   peliculas,
   salas,
+  fechaDesde = "",
+  fechaHasta = "",
+  estado = "todas",
 }: {
   hoy: string;
   funciones: FuncionAdmin[];
   peliculas: OpcionPelicula[];
   salas: OpcionSala[];
+  fechaDesde?: string;
+  fechaHasta?: string;
+  estado?: "todas" | "activas" | "canceladas" | "finalizadas";
 }) {
   // null = formulario cerrado; "nueva" = crear; una función = editar esa.
   const [formulario, setFormulario] = useState<FuncionAdmin | "nueva" | null>(null);
   const [aCancelar, setACancelar] = useState<FuncionAdmin | null>(null);
-  const [filtroFecha, setFiltroFecha] = useState("");
+  const [filtroFechaDesde, setFiltroFechaDesde] = useState(fechaDesde || "");
+  const [filtroFechaHasta, setFiltroFechaHasta] = useState(fechaHasta || "");
   const [filtroPelicula, setFiltroPelicula] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("");
+  const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>(
+    estado === "todas" ? "" : (estado as Extract<FiltroEstado, string>),
+  );
   const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<{ texto: string; ok: boolean } | null>(null);
   const [pendiente, startTransition] = useTransition();
   // Película elegida en el formulario (para mostrar su duración). null = sin tocar.
   const [peliculaElegida, setPeliculaElegida] = useState<string | null>(null);
   // Calendario estilo cartelera: "filtro" filtra el listado; "form" es la fecha de la función.
-  const [calendario, setCalendario] = useState<"filtro" | "form" | null>(null);
+  const [calendario, setCalendario] = useState<"filtro-desde" | "filtro-hasta" | "form" | null>(null);
   const [fechaTmp, setFechaTmp] = useState("");
   const [fechaForm, setFechaForm] = useState("");
   // Hora del formulario en 24h ("HH:MM"), armada por los dos selects de hora y minutos.
@@ -108,7 +117,8 @@ export function AdminFuncionesClient({
     !f.activa ? "cancelada" : yaFinalizo(f.fecha, f.hora, hoy, ahoraGT) ? "finalizada" : "activa";
 
   const filtradas = funciones.filter((f) => {
-    if (filtroFecha && f.fecha !== filtroFecha) return false;
+    if (filtroFechaDesde && f.fecha < filtroFechaDesde) return false;
+    if (filtroFechaHasta && f.fecha > filtroFechaHasta) return false;
     if (filtroPelicula && String(f.idPelicula) !== filtroPelicula) return false;
     if (!filtroEstado) return true;
     const estado = estadoDe(f);
@@ -135,16 +145,22 @@ export function AdminFuncionesClient({
   };
 
   /** Abre el calendario compacto (el mismo `Calendar` de la cartelera) para filtrar o para el form. */
-  const abrirCalendario = (destino: "filtro" | "form", actual: string) => {
+  const abrirCalendario = (
+    destino: "filtro-desde" | "filtro-hasta" | "form",
+    actual: string,
+  ) => {
     setFechaTmp(actual || hoy);
     setCalendario(destino);
   };
 
   const confirmarCalendario = () => {
-    if (fechaTmp) {
-      if (calendario === "filtro") setFiltroFecha(fechaTmp);
-      else setFechaForm(fechaTmp);
+    if (!fechaTmp) {
+      setCalendario(null);
+      return;
     }
+    if (calendario === "form") setFechaForm(fechaTmp);
+    if (calendario === "filtro-desde") setFiltroFechaDesde(fechaTmp);
+    if (calendario === "filtro-hasta") setFiltroFechaHasta(fechaTmp);
     setCalendario(null);
   };
 
@@ -199,18 +215,32 @@ export function AdminFuncionesClient({
 
         <div className="flex flex-wrap items-end justify-between gap-4 px-6 py-5">
           <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="label" htmlFor="filtro-fecha">
-                Fecha
+            <div className="flex flex-col gap-1">
+              <label className="label" htmlFor="filtro-fecha-desde">
+                Desde
               </label>
               <button
-                id="filtro-fecha"
+                id="filtro-fecha-desde"
                 type="button"
-                className="field inline-flex cursor-pointer items-center gap-2 text-left"
-                onClick={() => abrirCalendario("filtro", filtroFecha)}
+                className="field w-auto min-w-[145px] flex items-center justify-between px-2 py-1.5 text-left"
+                onClick={() => abrirCalendario("filtro-desde", filtroFechaDesde)}
               >
+                <span>{filtroFechaDesde ? fechaCorta(filtroFechaDesde) : fechaCorta(hoy)}</span>
                 <CalendarDays className="h-4 w-4 text-primary" />
-                {filtroFecha ? fechaCorta(filtroFecha) : "Todas las fechas"}
+              </button>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="label" htmlFor="filtro-fecha-hasta">
+                Hasta
+              </label>
+              <button
+                id="filtro-fecha-hasta"
+                type="button"
+                className="field w-auto min-w-[145px] flex items-center justify-between px-2 py-1.5 text-left"
+                onClick={() => abrirCalendario("filtro-hasta", filtroFechaHasta)}
+              >
+                <span>{filtroFechaHasta ? fechaCorta(filtroFechaHasta) : "Hasta"}</span>
+                <CalendarDays className="h-4 w-4 text-primary" />
               </button>
             </div>
             <div>
@@ -219,7 +249,7 @@ export function AdminFuncionesClient({
               </label>
               <select
                 id="filtro-pelicula"
-                className="field"
+                className="field border border-border bg-surface-2 text-secondary focus:border-primary focus:ring-primary"
                 value={filtroPelicula}
                 onChange={(e) => setFiltroPelicula(e.target.value)}
               >
@@ -237,7 +267,7 @@ export function AdminFuncionesClient({
               </label>
               <select
                 id="filtro-estado"
-                className="field"
+                className="field border border-border bg-surface-2 text-secondary focus:border-primary focus:ring-primary"
                 value={filtroEstado}
                 onChange={(e) => setFiltroEstado(e.target.value as FiltroEstado)}
               >
@@ -247,19 +277,20 @@ export function AdminFuncionesClient({
                 <option value="finalizadas">Finalizadas</option>
               </select>
             </div>
-            {(filtroFecha || filtroPelicula || filtroEstado) && (
+            {filtroFechaDesde !== "" || filtroFechaHasta !== "" || filtroPelicula !== "" || filtroEstado !== "" ? (
               <button
                 type="button"
                 className="btn-ghost"
                 onClick={() => {
-                  setFiltroFecha("");
+                  setFiltroFechaDesde("");
+                  setFiltroFechaHasta("");
                   setFiltroPelicula("");
                   setFiltroEstado("");
                 }}
               >
                 Quitar filtros
               </button>
-            )}
+            ) : null}
           </div>
           <button
             className="btn-primary"
@@ -552,18 +583,6 @@ export function AdminFuncionesClient({
         onClose={() => setCalendario(null)}
         footer={
           <>
-            {calendario === "filtro" && filtroFecha && (
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => {
-                  setFiltroFecha("");
-                  setCalendario(null);
-                }}
-              >
-                Quitar fecha
-              </button>
-            )}
             <button type="button" className="btn-primary" onClick={confirmarCalendario}>
               OK
             </button>
@@ -577,7 +596,7 @@ export function AdminFuncionesClient({
             selected={fechaTmp ? parseFecha(fechaTmp) : undefined}
             onSelect={(d) => setFechaTmp(d ? toFecha(d) : fechaTmp)}
             defaultMonth={parseFecha(fechaTmp || hoy)}
-            disabled={{ before: parseFecha(hoy) }}
+
           />
         </div>
       </Modal>
