@@ -58,7 +58,7 @@ export const MODULOS_ADMIN: ModuloAdmin[] = [
     nombre: "Usuarios",
     descripcion: "Cuentas de clientes, colaboradores y administradores.",
     icono: Users,
-    disponible: false,
+    disponible: true,
   },
 ];
 

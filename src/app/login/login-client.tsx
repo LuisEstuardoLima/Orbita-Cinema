@@ -10,11 +10,18 @@ type Props = {
   confirmado?: boolean;
   /** true cuando llegamos tras cambiar la contraseña con éxito (?reset=1). */
   resetOk?: boolean;
+  /** true cuando llegamos tras aceptar una invitación y establecer contraseña (?invitacion=1). */
+  invitacionOk?: boolean;
   /** Ruta a la que volver tras iniciar sesión (la pone el middleware en ?next=). */
   next?: string;
 };
 
-export function LoginClient({ confirmado = false, resetOk = false, next = "" }: Props) {
+export function LoginClient({
+  confirmado = false,
+  resetOk = false,
+  invitacionOk = false,
+  next = "",
+}: Props) {
   const [error, setError] = useState<string>("");
   const [resetMensaje, setResetMensaje] = useState<string>("");
   // "login" = form normal; "olvido" = pantalla dedicada que solo pide el correo.
@@ -97,6 +104,12 @@ export function LoginClient({ confirmado = false, resetOk = false, next = "" }: 
         {resetOk && (
           <div className="mb-4 border border-green-500/50 bg-green-500/10 p-3 rounded-md text-sm text-center text-green-600">
             ✅ Tu contraseña se actualizó. Ya puedes iniciar sesión.
+          </div>
+        )}
+
+        {invitacionOk && (
+          <div className="mb-4 border border-green-500/50 bg-green-500/10 p-3 rounded-md text-sm text-center text-green-600">
+            ✅ Tu cuenta ha sido activada. Ya puedes iniciar sesión.
           </div>
         )}
 

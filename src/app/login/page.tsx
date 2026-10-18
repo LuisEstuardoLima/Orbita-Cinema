@@ -13,12 +13,14 @@ export const metadata: Metadata = {
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
-  // ?confirmado=1 (tras activar la cuenta) y ?reset=1 (tras cambiar la contraseña)
+  // ?confirmado=1 (tras activar la cuenta), ?reset=1 (tras cambiar la contraseña)
+  // y ?invitacion=1 (tras aceptar una invitación y establecer contraseña)
   // muestran un banner de éxito.
   return (
     <LoginClient
       confirmado={str(sp["confirmado"]) === "1"}
       resetOk={str(sp["reset"]) === "1"}
+      invitacionOk={str(sp["invitacion"]) === "1"}
       next={str(sp["next"])}
     />
   );

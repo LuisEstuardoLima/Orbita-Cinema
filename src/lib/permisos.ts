@@ -14,7 +14,8 @@
  * | /admin/funciones               |         |      ✔      |       ✔       |
  * | /admin/peliculas               |         |   consulta  |       ✔       |
  * | /admin/salas (y asientos)      |         |   consulta  |       ✔       |
- * | /admin/reportes, /admin/usuarios (próximos) |   |      |       ✔       |
+ * | /admin/reportes (próximos)                  |   |      |       ✔       |
+ * | /admin/usuarios                             |   |  solo  |       ✔       |
  *
  * "consulta" = el Colaborador puede ENTRAR y ver la información, pero no crear, editar, dar de
  * baja ni activar/desactivar nada (ver `puedeModificar`). Las Server Actions de esos módulos
@@ -38,7 +39,7 @@ export const REGLAS_RUTA: readonly ReglaRuta[] = [
   { prefix: "/admin/peliculas", roles: ROLES_PANEL }, // Colaborador: solo consulta
   { prefix: "/admin/salas", roles: ROLES_PANEL }, // Colaborador: solo consulta (incluye asientos)
   { prefix: "/admin/reportes", roles: ROLES_ADMIN },
-  { prefix: "/admin/usuarios", roles: ROLES_ADMIN },
+  { prefix: "/admin/usuarios", roles: ROLES_PANEL },
   { prefix: "/admin/funciones", roles: ROLES_PANEL },
   { prefix: "/admin", roles: ROLES_PANEL },
   { prefix: "/perfil", roles: "cualquiera" }, // requiere sesión, cualquier rol
@@ -64,6 +65,7 @@ const MODIFICAR: readonly ReglaRuta[] = [
   { prefix: "/admin/peliculas", roles: ROLES_ADMIN },
   { prefix: "/admin/salas", roles: ROLES_ADMIN },
   { prefix: "/admin/funciones", roles: ROLES_PANEL },
+  { prefix: "/admin/usuarios", roles: ROLES_ADMIN },
 ];
 
 /** ¿Puede este rol crear/modificar en el módulo de la ruta? */

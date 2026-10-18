@@ -232,3 +232,47 @@ Las consultas de `cartelera.ts` piden todas las columnas, pero el código solo u
 Cuando se conecte el flujo de compra el usuario va a recargar el detalle varias veces seguidas. Ahí conviene revisar un `revalidate` con *tags* de Next, o `unstable_cache` con una invalidación explícita desde las Server Actions.
 
 **Dejar para cuando exista el flujo de compra**, para no cachear de más una pantalla que aún cambia.
+
+## Sprint 4 · SCRUM-134: Gestión de usuarios del panel admin
+
+### Qué implementa
+
+Pantalla `/admin/usuarios` para consultar y gestionar los usuarios registrados (Clientes, Colaboradores y Administradores), cambiar sus roles y crear cuentas individuales de personal.
+
+### Archivos nuevos
+
+- `supabase/sprint4-usuarios.sql` — función RPC `admin_listar_usuarios()` (security definer) que une `usuarios` + `auth.users` + `rol` para listar nombre, correo, rol y estado de confirmación. Solo ejecutable por `service_role`.
+- `src/lib/db/usuarios.ts` — `listarUsuariosAdmin()` que llama a la RPC.
+- `src/app/admin/usuarios/page.tsx` — Server Component: exige rol (Colaborador o Administrador), lista usuarios, pasa `soloLectura` a la UI.
+- `src/app/admin/usuarios/admin-usuarios-client.tsx` — tabla con buscador, cambio de rol por fila, modal de nueva cuenta (nombre, apellido, correo, teléfono, rol Colaborador/Administrador, sin contraseña).
+- `src/app/admin/usuarios/actions.ts` — Server Actions: `crearCuentaPersonal` (invita por correo vía `inviteUserByEmail`, asigna rol, sin duplicados) y `cambiarRol` (con protección de la propia cuenta de Administrador).
+- `src/app/aceptar-invitacion/page.tsx` + `aceptar-invitacion-client.tsx` — acepta la invitación (hash del enlace o `?code=`), establece contraseña y redirige a `/login?invitacion=1`.
+
+### Archivos modificados
+
+- `src/lib/permisos.ts` — `/admin/usuarios` entra con `ROLES_PANEL` (Colaborador: solo lectura); se modifica con `ROLES_ADMIN` (solo Administrador).
+- `src/lib/admin-modulos.ts` — el módulo "Usuarios" pasa a `disponible: true` en el menú y tarjetas del panel.
+- `src/app/login/page.tsx` y `login-client.tsx` — aceptan `?invitacion=1` y muestran un banner de éxito.
+- `README.md` — esta sección.
+
+### Cómo ponerlo en marcha
+
+1. Ejecutar `supabase/sprint4-usuarios.sql` en Supabase > SQL Editor.
+2. En Supabase > Authentication > URL Configuration, añadir `TU_DOMINIO/aceptar-invitacion` a **Redirect URLs**.
+3. En Supabase > Authentication > Email Templates, revisar que la plantilla **"Invite user"** esté activa (usa el SMTP/Brevo ya configurado, igual que el registro y "Olvidé mi contraseña").
+4. Activar `AUTH_GUARD=on` en `.env.local` para que el control de acceso entre en vigor.
+
+### Reglas de acceso
+
+| Rol | Puede entrar a /admin/usuarios | Puede crear cuentas | Puede cambiar roles |
+|-----|-------------------------------|---------------------|---------------------|
+| Administrador | ✅ | ✅ | ✅ |
+| Colaborador | ✅ (solo lectura) | ❌ | ❌ |
+| Cliente | ❌ | ❌ | ❌ |
+
+### Notas de seguridad
+
+- El registro público desde la cartelera sigue asignando automáticamente el rol **Cliente**; nunca permite elegir Colaborador o Administrador.
+- Solo `service_role` puede escribir `id_rol` en `public.usuarios` (los grants de PostgreSQL lo impiden para usuarios autenticados).
+- Un Administrador no puede quitarse a sí mismo su propio rol de Administrador.
+- El correo de invitación se envía por el SMTP de Supabase Auth (el mismo Brevo que ya usa el registro y la recuperación de contraseña). No se instalan librerías de correo nuevas.
