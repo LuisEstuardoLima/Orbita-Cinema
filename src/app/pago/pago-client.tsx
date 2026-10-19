@@ -64,6 +64,7 @@ export function PagoClient(search: Props) {
   const [aprobado, setAprobado] = useState(false);
   const [metodo, setMetodo] = useState<MetodoPago>("tarjeta_credito");
   const [idReserva, setIdReserva] = useState<number | null>(null);
+  const [correoEnviado, setCorreoEnviado] = useState<boolean | null>(null);
 
   // Para que "Iniciar sesión" vuelva a ESTA compra con todos sus parámetros.
   const pathname = usePathname();
@@ -150,6 +151,7 @@ export function PagoClient(search: Props) {
         return;
       }
       setIdReserva(res.idReserva);
+      setCorreoEnviado(res.correoEnviado);
       setAprobado(true);
       setDone(true); // CA3: pago aprobado -> pantalla de confirmación.
     } finally {
@@ -552,6 +554,20 @@ export function PagoClient(search: Props) {
               Q.{(search.total || 94.5).toFixed(2)}
             </span>
           </p>
+          {correoEnviado === true && (
+            <p className="text-sm text-muted-foreground">
+              Enviamos tu boleto con código QR a{" "}
+              <span className="font-medium text-foreground">
+                {search.cuenta?.email || datos.correo}
+              </span>
+              .
+            </p>
+          )}
+          {correoEnviado === false && (
+            <p className="text-xs text-muted-foreground">
+              No pudimos enviarte el boleto por correo; conserva tu número de reserva.
+            </p>
+          )}
         </div>
       </Modal>
     </div>

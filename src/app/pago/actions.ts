@@ -10,6 +10,7 @@ import {
 import { getBloqueoVigente, getTokenBloqueo, liberarBloqueoActual } from "@/lib/db/bloqueo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPerfilActual } from "@/lib/auth/perfil";
+import { enviarBoletoPorCorreo } from "@/lib/correo";
 
 /**
  * Resultado del pago. `ultimos4` es lo ÚNICO de la tarjeta que se conserva
@@ -17,7 +18,7 @@ import { getPerfilActual } from "@/lib/auth/perfil";
  * confirmación (CA6 del registro).
  */
 export type ResultadoPago =
-  | { ok: true; ultimos4: string; idReserva: number }
+  | { ok: true; ultimos4: string; idReserva: number; correoEnviado: boolean }
   | { ok: false; error: string; vencido?: boolean };
 
 /** Mensajes de los errores que lanza confirmar_compra (sprint3-confirmar-compra.sql). */
@@ -125,5 +126,9 @@ export async function procesarPago(input: {
   if (!fila) {
     return { ok: false, error: "No se pudo registrar la compra. Intenta de nuevo." };
   }
-  return { ok: true, ultimos4, idReserva: fila.out_id_reserva };
+
+  // Best-effort: la compra ya quedó confirmada; si el correo falla, no se
+  // revierte nada y la confirmación avisa para que guarde su número ORB-.
+  const correoEnviado = await enviarBoletoPorCorreo(fila.out_id_reserva);
+  return { ok: true, ultimos4, idReserva: fila.out_id_reserva, correoEnviado };
 }
