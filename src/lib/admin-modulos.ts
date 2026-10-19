@@ -1,12 +1,27 @@
-import { Clapperboard, DoorOpen, Film, LayoutDashboard, Users, BarChart3, type LucideIcon } from "lucide-react";
+import {
+  BarChart3,
+  Clapperboard,
+  DoorOpen,
+  Film,
+  LayoutDashboard,
+  Settings,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 
 /**
- * Módulos del panel administrativo (SCRUM-112). Es la ÚNICA lista que alimenta el menú lateral
- * (`AdminNav`) y las tarjetas de la página de inicio (`/admin`).
+ * Módulos del panel administrativo (SCRUM-112 / SCRUM-139).
  *
- * Para sumar un módulo: crear su carpeta en `src/app/admin/<modulo>/page.tsx` (queda dentro del
- * layout común automáticamente) y poner `disponible: true` en su entrada. Mientras esté en
- * `false` se muestra como "Próximamente" y no es un enlace, así nadie cae en un 404.
+ * Es la ÚNICA lista que alimenta el menú lateral (`AdminNav`)
+ * y las tarjetas de la página de inicio (`/admin`).
+ *
+ * Para sumar un módulo:
+ * 1. crear su carpeta en `src/app/admin/<modulo>/page.tsx`;
+ * 2. registrar aquí su entrada;
+ * 3. configurar sus permisos en `src/lib/permisos.ts`.
+ *
+ * Mientras `disponible` sea false, se muestra como "Próximamente"
+ * y no funciona como enlace.
  */
 export type ModuloAdmin = {
   href: string;
@@ -19,7 +34,8 @@ export type ModuloAdmin = {
 export const INICIO_ADMIN: ModuloAdmin = {
   href: "/admin",
   nombre: "Inicio",
-  descripcion: "Resumen y accesos del panel.",
+  descripcion:
+    "Resumen y accesos del panel.",
   icono: LayoutDashboard,
   disponible: true,
 };
@@ -28,42 +44,71 @@ export const MODULOS_ADMIN: ModuloAdmin[] = [
   {
     href: "/admin/peliculas",
     nombre: "Películas",
-    descripcion: "Registrar, editar, activar y eliminar películas de la cartelera.",
+    descripcion:
+      "Registrar, editar, activar y eliminar películas de la cartelera.",
     icono: Film,
     disponible: true,
   },
   {
     href: "/admin/funciones",
     nombre: "Funciones",
-    descripcion: "Programar funciones y horarios por película y sala.",
+    descripcion:
+      "Programar funciones y horarios por película y sala.",
     icono: Clapperboard,
     disponible: true,
   },
   {
     href: "/admin/salas",
     nombre: "Salas y asientos",
-    descripcion: "Gestionar salas, su capacidad y la distribución de asientos.",
+    descripcion:
+      "Gestionar salas, su capacidad y la distribución de asientos.",
     icono: DoorOpen,
+    disponible: true,
+  },
+  {
+    href: "/admin/configuracion",
+    nombre: "Configuración",
+    descripcion:
+      "Configurar parámetros generales del sistema, como el porcentaje de recargo.",
+    icono: Settings,
     disponible: true,
   },
   {
     href: "/admin/reportes",
     nombre: "Reportes",
-    descripcion: "Ventas, reservas y ocupación por función o película.",
+    descripcion:
+      "Ventas, reservas y ocupación por función o película.",
     icono: BarChart3,
     disponible: false,
   },
   {
     href: "/admin/usuarios",
     nombre: "Usuarios",
-    descripcion: "Cuentas de clientes, colaboradores y administradores.",
+    descripcion:
+      "Cuentas de clientes, colaboradores y administradores.",
     icono: Users,
     disponible: true,
   },
 ];
 
-/** ¿Está activa esta opción del menú para la ruta actual? Inicio solo coincide exacto. */
-export function esActivo(href: string, pathname: string): boolean {
-  if (href === INICIO_ADMIN.href) return pathname === href;
-  return pathname === href || pathname.startsWith(`${href}/`);
+/**
+ * ¿Está activa esta opción del menú para la ruta actual?
+ * Inicio solo coincide exactamente con `/admin`.
+ */
+export function esActivo(
+  href: string,
+  pathname: string,
+): boolean {
+  if (
+    href === INICIO_ADMIN.href
+  ) {
+    return pathname === href;
+  }
+
+  return (
+    pathname === href ||
+    pathname.startsWith(
+      `${href}/`,
+    )
+  );
 }
