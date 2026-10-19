@@ -97,13 +97,13 @@ export function LoginClient({
 
         {confirmado && (
           <div className="mb-4 border border-green-500/50 bg-green-500/10 p-3 rounded-md text-sm text-center text-green-600">
-            ✅ ¡Correo confirmado! Tu cuenta ya está activa. Inicia sesión para continuar.
+            ¡Correo confirmado! Tu cuenta ya está activa. Inicia sesión para continuar.
           </div>
         )}
 
         {resetOk && (
           <div className="mb-4 border border-green-500/50 bg-green-500/10 p-3 rounded-md text-sm text-center text-green-600">
-            ✅ Tu contraseña se actualizó. Ya puedes iniciar sesión.
+            Tu contraseña se actualizó. Ya puedes iniciar sesión.
           </div>
         )}
 

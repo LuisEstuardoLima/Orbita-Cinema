@@ -4,6 +4,7 @@ import { num, str, toHref, type SP } from "@/lib/search-params";
 import { cantidadesDeParams } from "@/lib/compra";
 import { etiquetaAsiento } from "@/lib/bloqueo";
 import { getBloqueoVigente } from "@/lib/db/bloqueo";
+import { getPerfilActual } from "@/lib/auth/perfil";
 import { PagoClient } from "./pago-client";
 
 export const dynamic = "force-dynamic"; // depende del bloqueo y de la hora
@@ -34,6 +35,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
     redirect(idFuncion > 0 ? toHref("/asientos", { funcion: idFuncion, ...cantidades, vencido: 1 }) : "/");
   }
 
+  // Ticket INVITADO: con sesión se usan los datos de la cuenta (CA5); sin
+  // sesión, el cliente muestra la elección login/invitado (CA1).
+  const perfil = await getPerfilActual();
+  const cuenta = perfil
+    ? { nombre: perfil.nombre, apellido: perfil.apellido, email: perfil.email, telefono: perfil.telefono }
+    : null;
+
   return (
     <PagoClient
       slug={str(sp["slug"], "batman")}
@@ -45,6 +53,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       idFuncion={idFuncion}
       cantidades={cantidades}
       segundosRestantes={bloqueo.segundosRestantes}
+      cuenta={cuenta}
     />
   );
 }

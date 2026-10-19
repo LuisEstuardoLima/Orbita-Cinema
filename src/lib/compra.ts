@@ -5,6 +5,7 @@
  * /asientos). Los cálculos de dinero que valen para cobrar se hacen SOLO en el servidor con
  * `calcularResumenCompra`; aquí solo hay límites, formatos y lectura de la URL.
  */
+import { z } from "zod";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { TIPOS_ENTRADA, type TipoEntradaId } from "@/lib/entradas";
@@ -53,6 +54,114 @@ export type ResumenCompra = {
 
 /** 70 -> "Q 70.00" */
 export const quetzales = (monto: number) => `Q ${monto.toFixed(2)}`;
+
+/**
+ * Datos del comprador invitado (CA2–CA3 del ticket INVITADO): nombre completo,
+ * correo y teléfono. El navegador valida con este schema antes de avanzar al
+ * pago y el servidor lo vuelve a validar al confirmar la compra (SCRUM-125):
+ * nunca se confía solo en la validación del cliente.
+ */
+export const datosInvitadoSchema = z.object({
+  nombre: z.string().trim().min(1, "Escribe tu nombre completo."),
+  correo: z
+    .string()
+    .trim()
+    .min(1, "Escribe tu correo electrónico.")
+    .email("El correo no tiene un formato válido."),
+  telefono: z
+    .string()
+    .trim()
+    .min(8, "Escribe un teléfono válido (mínimo 8 dígitos).")
+    .regex(/^[0-9\s\-+()]+$/, "El teléfono solo puede contener dígitos, espacios, guiones y paréntesis."),
+});
+
+export type DatosInvitado = z.infer<typeof datosInvitadoSchema>;
+
+/**
+ * Lógica de la tarjeta de crédito/débito (ticket COMPRA - Pago con tarjeta).
+ * Es lógica pura: la usa el navegador para dar mensajes inmediatos y el
+ * servidor para no confiar en la validación del cliente (CA2).
+ */
+
+/** Quita lo que no sea dígito: "4242 4242-4242" -> "424242424242". */
+export const soloDigitos = (v: string) => v.replace(/\D/g, "");
+
+/**
+ * Número de tarjeta válido: 13 a 19 dígitos y dígito verificador según el
+ * algoritmo de Luhn (el mismo que usan las pasarelas reales): se recorre de
+ * derecha a izquierda duplicando cada segundo dígito (si pasa de 9 se restan 9)
+ * y la suma total debe ser múltiplo de 10.
+ */
+export function numeroTarjetaValido(numero: string): boolean {
+  const d = soloDigitos(numero);
+  if (d.length < 13 || d.length > 19) return false;
+  let suma = 0;
+  for (let i = 0; i < d.length; i++) {
+    let digito = d.charCodeAt(i) - 48;
+    if ((d.length - i) % 2 === 0) {
+      digito *= 2;
+      if (digito > 9) digito -= 9;
+    }
+    suma += digito;
+  }
+  return suma % 10 === 0;
+}
+
+/** "07/28" -> 1 de agosto de 2028 (la tarjeta vale hasta el último día de su mes); null si el formato/mes no sirve. */
+const finDeMesVencimiento = (v: string): Date | null => {
+  if (!/^\d{2}\/\d{2}$/.test(v)) return null;
+  const mes = Number(v.slice(0, 2));
+  if (mes < 1 || mes > 12) return null;
+  return new Date(2000 + Number(v.slice(3, 5)), mes, 1);
+};
+
+/**
+ * Datos de la tarjeta (CA1 del ticket de pago). El CVV se valida aquí en el
+ * navegador y NUNCA viaja al servidor ni se guarda (CA6); el servidor recibe
+ * solo nombre, número y vencimiento y vuelve a validarlos.
+ */
+export const datosTarjetaSchema = z.object({
+  nombre: z
+    .string()
+    .trim()
+    .min(1, "Escribe el nombre como aparece en la tarjeta."),
+  numero: z
+    .string()
+    .trim()
+    .min(1, "Escribe el número de tarjeta.")
+    .regex(/^[\d\s-]+$/, "El número solo puede contener dígitos, espacios o guiones.")
+    .refine(numeroTarjetaValido, "El número de tarjeta no es válido."),
+  vencimiento: z
+    .string()
+    .trim()
+    .regex(/^\d{2}\/\d{2}$/, "Usa el formato MM/AA (ej. 07/28).")
+    .refine((v) => {
+      const mes = Number(v.slice(0, 2));
+      return mes >= 1 && mes <= 12;
+    }, "El mes debe estar entre 01 y 12.")
+    .refine((v) => {
+      const fin = finDeMesVencimiento(v);
+      return fin !== null && fin.getTime() > Date.now();
+    }, "La tarjeta está vencida."),
+  cvv: z.string().regex(/^\d{3,4}$/, "El CVV debe tener 3 o 4 dígitos."),
+});
+
+export type DatosTarjeta = z.infer<typeof datosTarjetaSchema>;
+
+/** Métodos de pago permitidos por el CHECK de public.pago (Fase 3). */
+export const METODOS_PAGO = [
+  { id: "tarjeta_credito", nombre: "Tarjeta de crédito" },
+  { id: "tarjeta_debito", nombre: "Tarjeta de débito" },
+] as const;
+
+export type MetodoPago = (typeof METODOS_PAGO)[number]["id"];
+
+/**
+ * Número de reserva visible al cliente (CA6 del registro): ORB-000123 a
+ * partir del id. Es el dato que la confirmación muestra y con el que el
+ * cliente puede pedir soporte.
+ */
+export const numeroReserva = (id: number) => `ORB-${String(id).padStart(6, "0")}`;
 
 export const formatoFuncion = (idioma: string | null, subtitulos: boolean | null) =>
   idioma ? `${subtitulos ? "Subtitulada" : "Doblada"} ${idioma}` : "";
