@@ -9,7 +9,7 @@ import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import { Modal } from "@/components/cinema/Modal";
 import { buildFunctionLabel, getMovie } from "@/lib/cinema-data";
 import { ContadorBloqueo } from "@/components/cinema/ContadorBloqueo";
-import { datosInvitadoSchema, datosTarjetaSchema, METODOS_PAGO, numeroReserva, quetzales, type Cantidades, type DatosInvitado, type DatosTarjeta, type MetodoPago } from "@/lib/compra";
+import { datosInvitadoSchema, datosTarjetaSchema, METODOS_PAGO, numeroReserva, quetzales, soloDigitos, type Cantidades, type DatosInvitado, type DatosTarjeta, type MetodoPago } from "@/lib/compra";
 import { toHref } from "@/lib/search-params";
 import { liberarBloqueo } from "@/app/asientos/actions";
 import { procesarPago } from "./actions";
@@ -61,6 +61,8 @@ export function PagoClient(search: Props) {
   });
   const [erroresTarjeta, setErroresTarjeta] = useState<Partial<Record<keyof DatosTarjeta, string>>>({});
   const [errorPago, setErrorPago] = useState<string | null>(null);
+  // El checkbox de Términos y Condiciones arranca desmarcado; sin él no se puede pagar.
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [aprobado, setAprobado] = useState(false);
   const [metodo, setMetodo] = useState<MetodoPago>("tarjeta_credito");
   const [idReserva, setIdReserva] = useState<number | null>(null);
@@ -111,6 +113,12 @@ export function PagoClient(search: Props) {
   // resultado muestra rechazo reintentable o abre la confirmación (CA3).
   const pagar = async () => {
     if (ocupado || aprobado) return; // CA5: sin pagos duplicados.
+
+    // Sin los Términos y Condiciones aceptados no se realiza el pago.
+    if (!aceptaTerminos) {
+      setErrorPago("Debes aceptar los Términos y Condiciones y el Aviso de Privacidad para pagar.");
+      return;
+    }
 
     // CA3 (defensa): nunca se llega al cobro sin datos de comprador válidos.
     if (!search.cuenta && !datosInvitadoSchema.safeParse(datos).success) {
@@ -283,6 +291,16 @@ export function PagoClient(search: Props) {
     ventana.document.close();
   };
 
+  // "4242424242424242" -> "4242 4242 4242 4242" (máx. 19 dígitos).
+  const formatearNumeroTarjeta = (v: string) =>
+    soloDigitos(v).slice(0, 19).replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+
+  // "0728" -> "07/28": la diagonal se inserta sola tras los dos primeros dígitos.
+  const formatearVencimiento = (v: string) => {
+    const d = soloDigitos(v).slice(0, 4);
+    return d.length <= 2 ? d : `${d.slice(0, 2)}/${d.slice(2)}`;
+  };
+
   return (
     <div className="min-h-screen">
       <SiteHeader />
@@ -448,7 +466,10 @@ export function PagoClient(search: Props) {
                   className="field"
                   placeholder="0000 0000 0000 0000"
                   value={tarjeta.numero}
-                  onChange={(e) => setTarjeta({ ...tarjeta, numero: e.target.value })}
+                  onChange={(e) =>
+                    // Un espacio cada 4 dígitos: "4242 4242 4242 4242".
+                    setTarjeta({ ...tarjeta, numero: formatearNumeroTarjeta(e.target.value) })
+                  }
                   aria-invalid={Boolean(erroresTarjeta.numero)}
                 />
                 {erroresTarjeta.numero && (
@@ -468,7 +489,10 @@ export function PagoClient(search: Props) {
                   className="field"
                   placeholder="07/28"
                   value={tarjeta.vencimiento}
-                  onChange={(e) => setTarjeta({ ...tarjeta, vencimiento: e.target.value })}
+                  onChange={(e) =>
+                    // La diagonal se agrega sola: "0728" -> "07/28".
+                    setTarjeta({ ...tarjeta, vencimiento: formatearVencimiento(e.target.value) })
+                  }
                   aria-invalid={Boolean(erroresTarjeta.vencimiento)}
                 />
                 {erroresTarjeta.vencimiento && (
@@ -536,7 +560,8 @@ export function PagoClient(search: Props) {
           <label className="mt-6 flex items-start gap-3 text-sm text-muted-foreground">
             <input
               type="checkbox"
-              defaultChecked
+              checked={aceptaTerminos}
+              onChange={(e) => setAceptaTerminos(e.target.checked)}
               className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
             />
             He leído y estoy de acuerdo con los Términos y Condiciones y Aviso de Privacidad
