@@ -9,7 +9,8 @@
  *
  * Se muestra dentro del layout común del panel (SCRUM-112), que ya pone encabezado y menú.
  */
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Ban, CalendarDays, Clock, Pencil, Plus } from "lucide-react";
@@ -108,6 +109,14 @@ export function AdminFuncionesClient({
   // Hora del formulario en 24h ("HH:MM"), armada por los dos selects de hora y minutos.
   const [horaForm, setHoraForm] = useState("");
 
+  const router = useRouter();
+
+  // Sincroniza los filtros de fecha con los parámetros de URL (vienen del servidor).
+  useEffect(() => {
+    setFiltroFechaDesde(fechaDesde || "");
+    setFiltroFechaHasta(fechaHasta || "");
+  }, [fechaDesde, fechaHasta]);
+
   const editando = formulario && formulario !== "nueva" ? formulario : null;
 
   // Hora actual de Guatemala (el servidor la pasa como `hoy`; la hora se deriva aquí).
@@ -153,14 +162,28 @@ export function AdminFuncionesClient({
     setCalendario(destino);
   };
 
+  /** Navega a la URL con los parámetros de filtro de fecha activos (o los quita si ninguno). */
+  const navegarFiltros = (desde?: string, hasta?: string) => {
+    const params = new URLSearchParams();
+    if (desde) params.set("fechaDesde", desde);
+    if (hasta) params.set("fechaHasta", hasta);
+    router.push(`?${params.toString()}`, { scroll: false });
+  };
+
   const confirmarCalendario = () => {
     if (!fechaTmp) {
       setCalendario(null);
       return;
     }
     if (calendario === "form") setFechaForm(fechaTmp);
-    if (calendario === "filtro-desde") setFiltroFechaDesde(fechaTmp);
-    if (calendario === "filtro-hasta") setFiltroFechaHasta(fechaTmp);
+    if (calendario === "filtro-desde") {
+      setFiltroFechaDesde(fechaTmp);
+      navegarFiltros(fechaTmp, filtroFechaHasta);
+    }
+    if (calendario === "filtro-hasta") {
+      setFiltroFechaHasta(fechaTmp);
+      navegarFiltros(filtroFechaDesde, fechaTmp);
+    }
     setCalendario(null);
   };
 
@@ -286,6 +309,7 @@ export function AdminFuncionesClient({
                   setFiltroFechaHasta("");
                   setFiltroPelicula("");
                   setFiltroEstado("");
+                  navegarFiltros("", "");
                 }}
               >
                 Quitar filtros
