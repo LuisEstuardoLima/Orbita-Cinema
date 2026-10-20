@@ -385,18 +385,36 @@ export function PagoClient(search: Props) {
                   <option>NIT</option>
                 </select>
               </div>
+              {/* NIT: los campos quedan bloqueados (no se capturan datos). */}
               <div>
                 <label className="label">Nombre</label>
-                <input className="field" placeholder="Nombre en factura" />
+                <input
+                  className="field disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Nombre en factura"
+                  disabled={factura === "NIT"}
+                />
               </div>
               <div>
                 <label className="label">Nit</label>
-                <input className="field" placeholder="C/F" />
+                <input
+                  className="field disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="C/F"
+                  disabled={factura === "NIT"}
+                />
               </div>
               <div>
                 <label className="label">Dirección</label>
-                <input className="field" placeholder="Dirección" />
+                <input
+                  className="field disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="Dirección"
+                  disabled={factura === "NIT"}
+                />
               </div>
+              {factura === "NIT" && (
+                <p className="text-xs text-muted-foreground">
+                  Factura con NIT: los datos de facturación quedan bloqueados.
+                </p>
+              )}
             </div>
 
             <div className="space-y-4">
