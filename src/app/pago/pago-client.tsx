@@ -65,6 +65,12 @@ export function PagoClient(search: Props) {
   });
   const [erroresTarjeta, setErroresTarjeta] = useState<Partial<Record<keyof DatosTarjeta, string>>>({});
   const [errorPago, setErrorPago] = useState<string | null>(null);
+  // Aviso inmediato al teclear letras en tarjeta, vencimiento o CVV.
+  const [avisosNumeros, setAvisosNumeros] = useState<Record<"numero" | "vencimiento" | "cvv", boolean>>({
+    numero: false,
+    vencimiento: false,
+    cvv: false,
+  });
   // El checkbox de Términos y Condiciones arranca desmarcado; sin él no se puede pagar.
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [aprobado, setAprobado] = useState(false);
@@ -305,6 +311,22 @@ export function PagoClient(search: Props) {
     return d.length <= 2 ? d : `${d.slice(0, 2)}/${d.slice(2)}`;
   };
 
+  // Los campos de tarjeta/vencimiento/CVV solo aceptan números: si se detectan
+  // letras se muestra una burbuja de aviso y los valores quedan filtrados.
+  const marcarLetras = (valor: string, campo: "numero" | "vencimiento" | "cvv") => {
+    const letras = /[a-zA-Z]/.test(valor);
+    setAvisosNumeros((prev) => ({ ...prev, [campo]: letras }));
+  };
+
+  const avisoSoloNumeros = (
+    <p
+      role="alert"
+      className="mt-1 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive"
+    >
+      Solo se permiten números.
+    </p>
+  );
+
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader />
@@ -469,12 +491,15 @@ export function PagoClient(search: Props) {
                   className="field"
                   placeholder="0000 0000 0000 0000"
                   value={tarjeta.numero}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    // Solo números: si llegan letras se avisa y se descartan.
+                    marcarLetras(e.target.value, "numero");
                     // Un espacio cada 4 dígitos: "4242 4242 4242 4242".
-                    setTarjeta({ ...tarjeta, numero: formatearNumeroTarjeta(e.target.value) })
-                  }
+                    setTarjeta({ ...tarjeta, numero: formatearNumeroTarjeta(e.target.value) });
+                  }}
                   aria-invalid={Boolean(erroresTarjeta.numero)}
                 />
+                {avisosNumeros.numero && avisoSoloNumeros}
                 {erroresTarjeta.numero && (
                   <p role="alert" className="mt-1 text-sm text-destructive">
                     {erroresTarjeta.numero}
@@ -492,12 +517,15 @@ export function PagoClient(search: Props) {
                   className="field"
                   placeholder="07/28"
                   value={tarjeta.vencimiento}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    // Solo números: si llegan letras se avisa y se descartan.
+                    marcarLetras(e.target.value, "vencimiento");
                     // La diagonal se agrega sola: "0728" -> "07/28".
-                    setTarjeta({ ...tarjeta, vencimiento: formatearVencimiento(e.target.value) })
-                  }
+                    setTarjeta({ ...tarjeta, vencimiento: formatearVencimiento(e.target.value) });
+                  }}
                   aria-invalid={Boolean(erroresTarjeta.vencimiento)}
                 />
+                {avisosNumeros.vencimiento && avisoSoloNumeros}
                 {erroresTarjeta.vencimiento && (
                   <p role="alert" className="mt-1 text-sm text-destructive">
                     {erroresTarjeta.vencimiento}
@@ -517,9 +545,14 @@ export function PagoClient(search: Props) {
                   className="field"
                   placeholder="123"
                   value={tarjeta.cvv}
-                  onChange={(e) => setTarjeta({ ...tarjeta, cvv: e.target.value })}
+                  onChange={(e) => {
+                    // Solo números: si llegan letras se avisa y se descartan.
+                    marcarLetras(e.target.value, "cvv");
+                    setTarjeta({ ...tarjeta, cvv: soloDigitos(e.target.value).slice(0, 4) });
+                  }}
                   aria-invalid={Boolean(erroresTarjeta.cvv)}
                 />
+                {avisosNumeros.cvv && avisoSoloNumeros}
                 {erroresTarjeta.cvv && (
                   <p role="alert" className="mt-1 text-sm text-destructive">
                     {erroresTarjeta.cvv}
