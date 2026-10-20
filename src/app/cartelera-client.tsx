@@ -26,9 +26,16 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Search, CalendarDays, Clock, Languages, Check } from "lucide-react";
+import {
+  Search,
+  CalendarDays,
+  Clock,
+  Languages,
+  Check,
+} from "lucide-react";
 
 import { SiteHeader } from "@/components/cinema/SiteHeader";
+import { SiteFooter } from "@/components/cinema/SiteFooter";
 import { Modal } from "@/components/cinema/Modal";
 import { PosterImage } from "@/components/cinema/PosterImage";
 import { Calendar } from "@/components/ui/calendar";
@@ -67,13 +74,26 @@ const HORARIOS = [
   },
 ] as const;
 
-const mayus = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const mayus = (s: string) =>
+  s.charAt(0).toUpperCase() + s.slice(1);
 
 const fechaLarga = (fecha: string) =>
-  mayus(format(parseFecha(fecha), "EEEE: dd 'de' MMMM", { locale: es }));
+  mayus(
+    format(
+      parseFecha(fecha),
+      "EEEE: dd 'de' MMMM",
+      { locale: es },
+    ),
+  );
 
 const fechaProxima = (fecha: string) =>
-  mayus(format(parseFecha(fecha), "EEEE dd 'de' MMMM", { locale: es }));
+  mayus(
+    format(
+      parseFecha(fecha),
+      "EEEE dd 'de' MMMM",
+      { locale: es },
+    ),
+  );
 
 export function CarteleraClient({
   peliculas,
@@ -86,63 +106,145 @@ export function CarteleraClient({
 }) {
   const router = useRouter();
 
-  const [draft, setDraft] = useState<Filtros>(iniciales);
-  const [applied, setApplied] = useState<Filtros>(iniciales);
+  const [draft, setDraft] =
+    useState<Filtros>(iniciales);
 
-  const [dateOpen, setDateOpen] = useState(false);
-  const [slotOpen, setSlotOpen] = useState(false);
-  const [langOpen, setLangOpen] = useState(false);
+  const [applied, setApplied] =
+    useState<Filtros>(iniciales);
 
-  const [tmpFecha, setTmpFecha] = useState<string | null>(null);
-  const [tmpDesde, setTmpDesde] = useState("");
-  const [tmpHasta, setTmpHasta] = useState("");
-  const [tmpIdioma, setTmpIdioma] = useState<IdiomaFiltro>("");
+  const [dateOpen, setDateOpen] =
+    useState(false);
 
-  const [elegida, setElegida] = useState<number | null>(null);
+  const [slotOpen, setSlotOpen] =
+    useState(false);
 
-  const alternarFuncion = (idFuncion: number) =>
-    setElegida((prev) => (prev === idFuncion ? null : idFuncion));
+  const [langOpen, setLangOpen] =
+    useState(false);
 
-  const urlActual = filtrosToParams(applied, hoy).toString();
-  const urlRecibida = filtrosToParams(iniciales, hoy).toString();
+  const [tmpFecha, setTmpFecha] =
+    useState<string | null>(null);
+
+  const [tmpDesde, setTmpDesde] =
+    useState("");
+
+  const [tmpHasta, setTmpHasta] =
+    useState("");
+
+  const [tmpIdioma, setTmpIdioma] =
+    useState<IdiomaFiltro>("");
+
+  const [elegida, setElegida] =
+    useState<number | null>(null);
+
+  const alternarFuncion = (
+    idFuncion: number,
+  ) =>
+    setElegida((prev) =>
+      prev === idFuncion
+        ? null
+        : idFuncion,
+    );
+
+  const urlActual =
+    filtrosToParams(
+      applied,
+      hoy,
+    ).toString();
+
+  const urlRecibida =
+    filtrosToParams(
+      iniciales,
+      hoy,
+    ).toString();
 
   useEffect(() => {
-    if (urlRecibida === urlActual) return;
+    if (
+      urlRecibida ===
+      urlActual
+    ) {
+      return;
+    }
 
     setDraft(iniciales);
     setApplied(iniciales);
-  }, [urlRecibida, urlActual, iniciales]);
+  }, [
+    urlRecibida,
+    urlActual,
+    iniciales,
+  ]);
 
-  // La búsqueda reacciona a cada tecla (`draft.query`); el resto de los filtros usa `applied`.
-  // El filtrado es puro arreglo en memoria — los datos ya están en el navegador — así que no hay
-  // consultas a la base ni esperas entre letras. El debounce solo sería necesario si al escribir
-  // llamáramos a `sincronizarUrl` (router.replace recarga page.tsx, que sí consulta Supabase).
   const visibles = useMemo(
-    () => peliculasVisibles(peliculas, { ...applied, query: draft.query }),
-    [peliculas, applied, draft.query],
+    () =>
+      peliculasVisibles(
+        peliculas,
+        {
+          ...applied,
+          query: draft.query,
+        },
+      ),
+    [
+      peliculas,
+      applied,
+      draft.query,
+    ],
   );
 
   const diasConFuncion = useMemo(
     () =>
-      [...new Set(peliculas.flatMap((p) => p.funciones.map((f) => f.fecha)))].map(
-        parseFecha,
-      ),
+      [
+        ...new Set(
+          peliculas.flatMap(
+            (p) =>
+              p.funciones.map(
+                (f) => f.fecha,
+              ),
+          ),
+        ),
+      ].map(parseFecha),
     [peliculas],
   );
 
-  const set = <K extends keyof Filtros>(k: K, v: Filtros[K]) =>
-    setDraft((d) => ({ ...d, [k]: v }));
+  const set = <
+    K extends keyof Filtros,
+  >(
+    k: K,
+    v: Filtros[K],
+  ) =>
+    setDraft((d) => ({
+      ...d,
+      [k]: v,
+    }));
 
-  const sincronizarUrl = (f: Filtros) => {
-    const q = filtrosToParams(f, hoy).toString();
+  const sincronizarUrl = (
+    f: Filtros,
+  ) => {
+    const q =
+      filtrosToParams(
+        f,
+        hoy,
+      ).toString();
 
-    router.replace(q ? `/?${q}` : "/", { scroll: false });
+    router.replace(
+      q ? `/?${q}` : "/",
+      {
+        scroll: false,
+      },
+    );
   };
 
-  const aplicar = (parche: Partial<Filtros>) => {
-    const siguiente = { ...draft, ...parche };
+  const aplicar = (
+    parche: Partial<Filtros>,
+  ) => {
+    const siguiente = {
+      ...draft,
+      ...parche,
+    };
 
-    if (parche.fecha && parche.fecha !== applied.fecha) {
+    if (
+      parche.fecha &&
+      parche.fecha !==
+        applied.fecha
+    ) {
       setElegida(null);
     }
 
@@ -151,12 +253,21 @@ export function CarteleraClient({
     sincronizarUrl(siguiente);
   };
 
-  const toggleClasif = (r: string) =>
+  const toggleClasif = (
+    r: string,
+  ) =>
     set(
       "clasificaciones",
-      draft.clasificaciones.includes(r)
-        ? draft.clasificaciones.filter((x) => x !== r)
-        : [...draft.clasificaciones, r],
+      draft.clasificaciones.includes(
+        r,
+      )
+        ? draft.clasificaciones.filter(
+            (x) => x !== r,
+          )
+        : [
+            ...draft.clasificaciones,
+            r,
+          ],
     );
 
   const reset = () => {
@@ -171,7 +282,9 @@ export function CarteleraClient({
   };
 
   const abrirFecha = () => {
-    setTmpFecha(draft.fecha ?? hoy);
+    setTmpFecha(
+      draft.fecha ?? hoy,
+    );
     setDateOpen(true);
   };
 
@@ -186,20 +299,21 @@ export function CarteleraClient({
     setLangOpen(true);
   };
 
-  const confirmarHorario = () => {
-    aplicar({
-      desde: tmpDesde,
-      hasta: tmpHasta,
-    });
+  const confirmarHorario =
+    () => {
+      aplicar({
+        desde: tmpDesde,
+        hasta: tmpHasta,
+      });
 
-    setSlotOpen(false);
-  };
+      setSlotOpen(false);
+    };
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
 
-      <main className="mx-auto grid max-w-[1400px] gap-8 px-6 py-8 lg:grid-cols-[300px_1fr]">
+      <main className="mx-auto grid w-full max-w-[1400px] flex-1 gap-8 px-6 py-8 lg:grid-cols-[300px_1fr]">
         {/* Panel de filtros */}
         <aside className="card-surface h-fit p-5">
           <div className="relative">
@@ -209,12 +323,23 @@ export function CarteleraClient({
               className="field pl-9"
               placeholder="Buscar función"
               value={draft.query}
-              onChange={(e) => set("query", e.target.value)}
+              onChange={(e) =>
+                set(
+                  "query",
+                  e.target.value,
+                )
+              }
               onKeyDown={(e) => {
-                if (e.key !== "Enter") return;
+                if (
+                  e.key !== "Enter"
+                ) {
+                  return;
+                }
 
                 setApplied(draft);
-                sincronizarUrl(draft);
+                sincronizarUrl(
+                  draft,
+                );
               }}
             />
           </div>
@@ -223,35 +348,57 @@ export function CarteleraClient({
 
           <div className="space-y-5">
             <div>
-              <button className="btn-ghost w-full" onClick={abrirFecha}>
+              <button
+                className="btn-ghost w-full"
+                onClick={
+                  abrirFecha
+                }
+              >
                 <CalendarDays className="h-4 w-4" />
                 Elegir fecha
               </button>
 
               <p className="mt-2 text-center text-sm text-muted-foreground">
-                {fechaLarga(draft.fecha ?? hoy)}
+                {fechaLarga(
+                  draft.fecha ??
+                    hoy,
+                )}
               </p>
             </div>
 
             <div>
-              <button className="btn-ghost w-full" onClick={abrirHorario}>
+              <button
+                className="btn-ghost w-full"
+                onClick={
+                  abrirHorario
+                }
+              >
                 <Clock className="h-4 w-4" />
                 Elegir Horario
               </button>
 
               <p className="mt-2 text-center text-sm text-muted-foreground">
-                {rangoLabel(draft.desde, draft.hasta)}
+                {rangoLabel(
+                  draft.desde,
+                  draft.hasta,
+                )}
               </p>
             </div>
 
             <div>
-              <button className="btn-ghost w-full" onClick={abrirIdioma}>
+              <button
+                className="btn-ghost w-full"
+                onClick={
+                  abrirIdioma
+                }
+              >
                 <Languages className="h-4 w-4" />
                 Elegir idioma
               </button>
 
               <p className="mt-2 text-center text-sm text-muted-foreground">
-                {draft.idioma || "Todos los idiomas"}
+                {draft.idioma ||
+                  "Todos los idiomas"}
               </p>
             </div>
           </div>
@@ -259,40 +406,58 @@ export function CarteleraClient({
           <div className="my-5 h-px bg-border" />
 
           <ul className="space-y-3">
-            {CLASIFICACIONES.map((r) => (
-              <li key={r}>
-                <button
-                  onClick={() => toggleClasif(r)}
-                  className="flex w-full items-center gap-3 text-sm text-foreground"
-                >
-                  <span
-                    className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
-                      draft.clasificaciones.includes(r)
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-surface-2"
-                    }`}
+            {CLASIFICACIONES.map(
+              (r) => (
+                <li key={r}>
+                  <button
+                    onClick={() =>
+                      toggleClasif(
+                        r,
+                      )
+                    }
+                    className="flex w-full items-center gap-3 text-sm text-foreground"
                   >
-                    {draft.clasificaciones.includes(r) && (
-                      <Check className="h-3.5 w-3.5" />
-                    )}
-                  </span>
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded border transition-colors ${
+                        draft.clasificaciones.includes(
+                          r,
+                        )
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-surface-2"
+                      }`}
+                    >
+                      {draft.clasificaciones.includes(
+                        r,
+                      ) && (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                    </span>
 
-                  Clasificación {r}
-                </button>
-              </li>
-            ))}
+                    Clasificación{" "}
+                    {r}
+                  </button>
+                </li>
+              ),
+            )}
           </ul>
 
           <div className="mt-6 flex gap-3">
-            <button className="btn-ghost flex-1" onClick={reset}>
+            <button
+              className="btn-ghost flex-1"
+              onClick={reset}
+            >
               Limpiar Filtros
             </button>
 
             <button
               className="btn-primary flex-1"
               onClick={() => {
-                setApplied(draft);
-                sincronizarUrl(draft);
+                setApplied(
+                  draft,
+                );
+                sincronizarUrl(
+                  draft,
+                );
               }}
             >
               Filtrar
@@ -303,140 +468,204 @@ export function CarteleraClient({
         {/* Grid de películas */}
         <section>
           <h1 className="mb-5 text-3xl tracking-wide">
-            {`Cartelera del ${fechaLarga(applied.fecha ?? hoy)}`}
+            {`Cartelera del ${fechaLarga(
+              applied.fecha ??
+                hoy,
+            )}`}
           </h1>
 
           <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {visibles.map(({ pelicula: m, funciones: todas }) => {
-              const fechaVista = applied.fecha ?? hoy;
+            {visibles.map(
+              ({
+                pelicula: m,
+                funciones: todas,
+              }) => {
+                const fechaVista =
+                  applied.fecha ??
+                  hoy;
 
-              const funciones = todas.filter(
-                (f) => f.fecha === fechaVista,
-              );
-
-              const selId = elegida;
-
-              const fnSel = elegida
-                ? m.funciones.find((f) => f.id === elegida)
-                : undefined;
-
-              const detalle = fnSel
-                ? `/pelicula/${m.slug}?fecha=${fnSel.fecha}&funcion=${fnSel.id}`
-                : `/pelicula/${m.slug}?fecha=${fechaVista}`;
-
-              const proxima = m.funciones.find(
-                (f) => f.fecha >= fechaVista,
-              );
-
-              const sinFunciones =
-                fechaVista === hoy
-                  ? "Sin funciones hoy"
-                  : `Sin funciones el ${fechaLarga(
+                const funciones =
+                  todas.filter(
+                    (f) =>
+                      f.fecha ===
                       fechaVista,
-                    ).toLowerCase()}`;
+                  );
 
-              return (
-                <article
-                  key={m.id}
-                  className="card-surface group overflow-hidden transition-transform duration-200 hover:-translate-y-1"
-                >
-                  <div className="relative aspect-[2/3] overflow-hidden">
-                    <PosterImage
-                      src={m.posterUrl}
-                      alt={`Póster de ${m.titulo}`}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
+                const selId =
+                  elegida;
 
-                    <span className="absolute right-3 top-3 rounded-md bg-primary px-2 py-1 text-xs font-bold text-primary-foreground">
-                      {m.clasificacion}
-                    </span>
-                  </div>
+                const fnSel =
+                  elegida
+                    ? m.funciones.find(
+                        (f) =>
+                          f.id ===
+                          elegida,
+                      )
+                    : undefined;
 
-                  <div className="p-4">
-                    <h2 className="text-2xl tracking-wide">
-                      {m.titulo}
-                    </h2>
+                const detalle =
+                  fnSel
+                    ? `/pelicula/${m.slug}?fecha=${fnSel.fecha}&funcion=${fnSel.id}`
+                    : `/pelicula/${m.slug}?fecha=${fechaVista}`;
 
-                    <p className="text-xs uppercase tracking-widest text-muted-foreground">
-                      {m.genero}
-                    </p>
+                const proxima =
+                  m.funciones.find(
+                    (f) =>
+                      f.fecha >=
+                      fechaVista,
+                  );
 
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {funciones.length === 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          {proxima
-                            ? `${sinFunciones} · Próxima función: ${fechaProxima(
-                                proxima.fecha,
-                              )}`
-                            : sinFunciones}
-                        </span>
-                      )}
+                const sinFunciones =
+                  fechaVista ===
+                  hoy
+                    ? "Sin funciones hoy"
+                    : `Sin funciones el ${fechaLarga(
+                        fechaVista,
+                      ).toLowerCase()}`;
 
-                      {funciones.slice(0, MAX_CHIPS).map((f) => (
-                        <button
-                          key={f.id}
-                          type="button"
-                          onClick={() => alternarFuncion(f.id)}
-                          aria-pressed={selId === f.id}
-                          aria-label={`Elegir función de las ${f.hora} en ${f.sala.nombre}`}
-                          className={
-                            selId === f.id
-                              ? "chip chip-active"
-                              : "chip"
-                          }
-                        >
-                          {f.hora}
-                        </button>
-                      ))}
+                return (
+                  <article
+                    key={m.id}
+                    className="card-surface group overflow-hidden transition-transform duration-200 hover:-translate-y-1"
+                  >
+                    <div className="relative aspect-[2/3] overflow-hidden">
+                      <PosterImage
+                        src={
+                          m.posterUrl
+                        }
+                        alt={`Póster de ${m.titulo}`}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
 
-                      {funciones.length > MAX_CHIPS && (
-                        <span className="chip">
-                          +{funciones.length - MAX_CHIPS}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between">
-                      <Link
-                        href={detalle}
-                        className="btn-primary px-4 py-2 text-xs normal-case tracking-normal"
-                      >
-                        {fnSel
-                          ? `Ver más... (${fnSel.hora})`
-                          : "Ver más..."}
-                      </Link>
-
-                      <span className="rounded-md border border-border bg-surface-2 px-2.5 py-1 text-xs font-bold text-secondary">
-                        {m.clasificacion}
+                      <span className="absolute right-3 top-3 rounded-md bg-primary px-2 py-1 text-xs font-bold text-primary-foreground">
+                        {
+                          m.clasificacion
+                        }
                       </span>
                     </div>
-                  </div>
-                </article>
-              );
-            })}
+
+                    <div className="p-4">
+                      <h2 className="text-2xl tracking-wide">
+                        {m.titulo}
+                      </h2>
+
+                      <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                        {m.genero}
+                      </p>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {funciones.length ===
+                          0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {proxima
+                              ? `${sinFunciones} · Próxima función: ${fechaProxima(
+                                  proxima.fecha,
+                                )}`
+                              : sinFunciones}
+                          </span>
+                        )}
+
+                        {funciones
+                          .slice(
+                            0,
+                            MAX_CHIPS,
+                          )
+                          .map((f) => (
+                            <button
+                              key={
+                                f.id
+                              }
+                              type="button"
+                              onClick={() =>
+                                alternarFuncion(
+                                  f.id,
+                                )
+                              }
+                              aria-pressed={
+                                selId ===
+                                f.id
+                              }
+                              aria-label={`Elegir función de las ${f.hora} en ${f.sala.nombre}`}
+                              className={
+                                selId ===
+                                f.id
+                                  ? "chip chip-active"
+                                  : "chip"
+                              }
+                            >
+                              {
+                                f.hora
+                              }
+                            </button>
+                          ))}
+
+                        {funciones.length >
+                          MAX_CHIPS && (
+                          <span className="chip">
+                            +
+                            {funciones.length -
+                              MAX_CHIPS}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between">
+                        <Link
+                          href={
+                            detalle
+                          }
+                          className="btn-primary px-4 py-2 text-xs normal-case tracking-normal"
+                        >
+                          {fnSel
+                            ? `Ver más... (${fnSel.hora})`
+                            : "Ver más..."}
+                        </Link>
+
+                        <span className="rounded-md border border-border bg-surface-2 px-2.5 py-1 text-xs font-bold text-secondary">
+                          {
+                            m.clasificacion
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                );
+              },
+            )}
           </div>
 
-          {visibles.length === 0 && (
+          {visibles.length ===
+            0 && (
             <p className="mt-6 text-sm text-muted-foreground">
-              No hay funciones que coincidan con los filtros seleccionados.
+              No hay funciones que
+              coincidan con los
+              filtros seleccionados.
             </p>
           )}
         </section>
       </main>
 
+      <SiteFooter />
+
       {/* Modal fecha */}
       <Modal
         open={dateOpen}
         title="Seleccionar una fecha para filtrar función"
-        onClose={() => setDateOpen(false)}
+        onClose={() =>
+          setDateOpen(false)
+        }
         footer={
           <div className="flex w-full items-center justify-between gap-3">
             <button
               className="btn-ghost"
               onClick={() => {
                 setTmpFecha(hoy);
-                aplicar({ fecha: hoy });
-                setDateOpen(false);
+                aplicar({
+                  fecha: hoy,
+                });
+                setDateOpen(
+                  false,
+                );
               }}
             >
               Hoy
@@ -445,7 +674,11 @@ export function CarteleraClient({
             <div className="flex gap-3">
               <button
                 className="btn-ghost"
-                onClick={() => setDateOpen(false)}
+                onClick={() =>
+                  setDateOpen(
+                    false,
+                  )
+                }
               >
                 Cancelar
               </button>
@@ -453,8 +686,13 @@ export function CarteleraClient({
               <button
                 className="btn-primary"
                 onClick={() => {
-                  aplicar({ fecha: tmpFecha });
-                  setDateOpen(false);
+                  aplicar({
+                    fecha:
+                      tmpFecha,
+                  });
+                  setDateOpen(
+                    false,
+                  );
                 }}
               >
                 OK
@@ -469,21 +707,32 @@ export function CarteleraClient({
             locale={es}
             selected={
               tmpFecha
-                ? parseFecha(tmpFecha)
+                ? parseFecha(
+                    tmpFecha,
+                  )
                 : undefined
             }
             onSelect={(d) =>
-              setTmpFecha(d ? toFecha(d) : hoy)
+              setTmpFecha(
+                d
+                  ? toFecha(d)
+                  : hoy,
+              )
             }
-            defaultMonth={parseFecha(tmpFecha ?? hoy)}
+            defaultMonth={parseFecha(
+              tmpFecha ?? hoy,
+            )}
             disabled={{
-              before: parseFecha(hoy),
+              before:
+                parseFecha(hoy),
             }}
             modifiers={{
-              conFuncion: diasConFuncion,
+              conFuncion:
+                diasConFuncion,
             }}
             modifiersClassNames={{
-              conFuncion: "font-bold text-primary",
+              conFuncion:
+                "font-bold text-primary",
             }}
           />
         </div>
@@ -493,19 +742,27 @@ export function CarteleraClient({
       <Modal
         open={slotOpen}
         title="Elegir un horario para filtrar función"
-        onClose={() => setSlotOpen(false)}
+        onClose={() =>
+          setSlotOpen(false)
+        }
         footer={
           <div className="flex w-full justify-end gap-3">
             <button
               className="btn-ghost"
-              onClick={() => setSlotOpen(false)}
+              onClick={() =>
+                setSlotOpen(
+                  false,
+                )
+              }
             >
               Cancelar
             </button>
 
             <button
               className="btn-primary"
-              onClick={confirmarHorario}
+              onClick={
+                confirmarHorario
+              }
             >
               OK
             </button>
@@ -513,36 +770,56 @@ export function CarteleraClient({
         }
       >
         <div className="space-y-3">
-          {HORARIOS.map((horario) => {
-            const seleccionado =
-              tmpDesde === horario.desde &&
-              tmpHasta === horario.hasta;
+          {HORARIOS.map(
+            (horario) => {
+              const seleccionado =
+                tmpDesde ===
+                  horario.desde &&
+                tmpHasta ===
+                  horario.hasta;
 
-            return (
-              <button
-                key={horario.nombre}
-                type="button"
-                onClick={() => {
-                  setTmpDesde(horario.desde);
-                  setTmpHasta(horario.hasta);
-                }}
-                aria-pressed={seleccionado}
-                className={`w-full rounded-xl border px-5 py-3 text-left transition-all ${
-                  seleccionado
-                    ? "border-primary bg-primary/15 ring-1 ring-primary"
-                    : "border-border bg-surface-2 hover:border-primary/70 hover:bg-primary/5"
-                }`}
-              >
-                <span className="block font-semibold text-foreground">
-                  {horario.nombre}
-                </span>
+              return (
+                <button
+                  key={
+                    horario.nombre
+                  }
+                  type="button"
+                  onClick={() => {
+                    setTmpDesde(
+                      horario.desde,
+                    );
+                    setTmpHasta(
+                      horario.hasta,
+                    );
+                  }}
+                  aria-pressed={
+                    seleccionado
+                  }
+                  className={`w-full rounded-xl border px-5 py-3 text-left transition-all ${
+                    seleccionado
+                      ? "border-primary bg-primary/15 ring-1 ring-primary"
+                      : "border-border bg-surface-2 hover:border-primary/70 hover:bg-primary/5"
+                  }`}
+                >
+                  <span className="block font-semibold text-foreground">
+                    {
+                      horario.nombre
+                    }
+                  </span>
 
-                <span className="mt-0.5 block text-sm text-muted-foreground">
-                  {horario.desde} - {horario.hasta}
-                </span>
-              </button>
-            );
-          })}
+                  <span className="mt-0.5 block text-sm text-muted-foreground">
+                    {
+                      horario.desde
+                    }{" "}
+                    -{" "}
+                    {
+                      horario.hasta
+                    }
+                  </span>
+                </button>
+              );
+            },
+          )}
         </div>
       </Modal>
 
@@ -550,12 +827,18 @@ export function CarteleraClient({
       <Modal
         open={langOpen}
         title="Elegir un idioma para filtrar función"
-        onClose={() => setLangOpen(false)}
+        onClose={() =>
+          setLangOpen(false)
+        }
         footer={
           <>
             <button
               className="btn-ghost"
-              onClick={() => setLangOpen(false)}
+              onClick={() =>
+                setLangOpen(
+                  false,
+                )
+              }
             >
               Cancelar
             </button>
@@ -563,8 +846,13 @@ export function CarteleraClient({
             <button
               className="btn-primary"
               onClick={() => {
-                aplicar({ idioma: tmpIdioma });
-                setLangOpen(false);
+                aplicar({
+                  idioma:
+                    tmpIdioma,
+                });
+                setLangOpen(
+                  false,
+                );
               }}
             >
               OK
@@ -573,21 +861,29 @@ export function CarteleraClient({
         }
       >
         <div className="space-y-3">
-          {(["", ...IDIOMAS_FILTRO] as IdiomaFiltro[]).map(
-            (l) => (
-              <button
-                key={l || "todos"}
-                onClick={() => setTmpIdioma(l)}
-                className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
-                  tmpIdioma === l
-                    ? "border-primary bg-primary/10"
-                    : "border-border bg-surface-2 hover:border-primary"
-                }`}
-              >
-                {l || "Todos los idiomas"}
-              </button>
-            ),
-          )}
+          {(
+            [
+              "",
+              ...IDIOMAS_FILTRO,
+            ] as IdiomaFiltro[]
+          ).map((l) => (
+            <button
+              key={
+                l || "todos"
+              }
+              onClick={() =>
+                setTmpIdioma(l)
+              }
+              className={`w-full rounded-lg border px-4 py-3 text-left transition-colors ${
+                tmpIdioma === l
+                  ? "border-primary bg-primary/10"
+                  : "border-border bg-surface-2 hover:border-primary"
+              }`}
+            >
+              {l ||
+                "Todos los idiomas"}
+            </button>
+          ))}
         </div>
       </Modal>
     </div>

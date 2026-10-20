@@ -21,14 +21,23 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+
 import { SiteHeader } from "@/components/cinema/SiteHeader";
+import { SiteFooter } from "@/components/cinema/SiteFooter";
 import { PosterImage } from "@/components/cinema/PosterImage";
 import { agruparPorSala, type PeliculaVM } from "@/lib/cartelera";
 import { parseFecha } from "@/lib/fechas";
 import { toHref } from "@/lib/search-params";
 
-const mayus = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const fechaPill = (fecha: string) => mayus(format(parseFecha(fecha), "EEE dd MMM", { locale: es }));
+const mayus = (s: string) =>
+  s.charAt(0).toUpperCase() + s.slice(1);
+
+const fechaPill = (fecha: string) =>
+  mayus(
+    format(parseFecha(fecha), "EEE dd MMM", {
+      locale: es,
+    }),
+  );
 
 export function PeliculaClient({
   pelicula,
@@ -43,32 +52,56 @@ export function PeliculaClient({
     () => [...new Set(pelicula.funciones.map((f) => f.fecha))],
     [pelicula.funciones],
   );
-  // Si la URL trae una función vigente, manda sobre la fecha (su día se deduce de ella).
-  const funcionUrl = pelicula.funciones.find((f) => f.id === funcionInicial);
-  const fechaDefault =
-    funcionUrl?.fecha ??
-    (fechaInicial && fechas.includes(fechaInicial) ? fechaInicial : (fechas[0] ?? ""));
 
-  const [fecha, setFecha] = useState(fechaDefault);
-  const [selId, setSelId] = useState<number | null>(
-    funcionUrl?.id ?? pelicula.funciones.find((f) => f.fecha === fechaDefault)?.id ?? null,
+  const funcionUrl = pelicula.funciones.find(
+    (f) => f.id === funcionInicial,
   );
 
-  const delDia = pelicula.funciones.filter((f) => f.fecha === fecha);
-  const salas = agruparPorSala(delDia);
-  const actual = pelicula.funciones.find((f) => f.id === selId) ?? null;
+  const fechaDefault =
+    funcionUrl?.fecha ??
+    (fechaInicial && fechas.includes(fechaInicial)
+      ? fechaInicial
+      : (fechas[0] ?? ""));
 
-  /** Refleja la selección en la URL (sin recargar) para conservarla al recargar o volver atrás. */
+  const [fecha, setFecha] = useState(fechaDefault);
+
+  const [selId, setSelId] = useState<number | null>(
+    funcionUrl?.id ??
+      pelicula.funciones.find((f) => f.fecha === fechaDefault)?.id ??
+      null,
+  );
+
+  const delDia = pelicula.funciones.filter(
+    (f) => f.fecha === fecha,
+  );
+
+  const salas = agruparPorSala(delDia);
+
+  const actual =
+    pelicula.funciones.find((f) => f.id === selId) ?? null;
+
   const sincronizarUrl = (f: string, id: number | null) => {
     const q = new URLSearchParams(window.location.search);
+
     q.set("fecha", f);
-    if (id == null) q.delete("funcion");
-    else q.set("funcion", String(id));
-    window.history.replaceState(null, "", `?${q.toString()}`);
+
+    if (id == null) {
+      q.delete("funcion");
+    } else {
+      q.set("funcion", String(id));
+    }
+
+    window.history.replaceState(
+      null,
+      "",
+      `?${q.toString()}`,
+    );
   };
 
   const cambiarFecha = (f: string) => {
-    const id = pelicula.funciones.find((fn) => fn.fecha === f)?.id ?? null;
+    const id =
+      pelicula.funciones.find((fn) => fn.fecha === f)?.id ?? null;
+
     setFecha(f);
     setSelId(id);
     sincronizarUrl(f, id);
@@ -80,11 +113,14 @@ export function PeliculaClient({
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
-      <main className="mx-auto grid max-w-[1400px] gap-10 px-6 py-10 lg:grid-cols-[1fr_552px]">
+
+      <main className="mx-auto grid w-full max-w-[1400px] flex-1 gap-10 px-6 py-10 lg:grid-cols-[1fr_552px]">
         <section>
-          <h1 className="text-5xl uppercase tracking-[0.12em] md:text-6xl">{pelicula.titulo}</h1>
+          <h1 className="text-5xl uppercase tracking-[0.12em] md:text-6xl">
+            {pelicula.titulo}
+          </h1>
 
           {fechas.length === 0 ? (
             <p className="mt-8 text-sm text-muted-foreground">
@@ -97,7 +133,11 @@ export function PeliculaClient({
                   <button
                     key={f}
                     onClick={() => cambiarFecha(f)}
-                    className={f === fecha ? "chip chip-active" : "chip"}
+                    className={
+                      f === fecha
+                        ? "chip chip-active"
+                        : "chip"
+                    }
                   >
                     {fechaPill(f)}
                   </button>
@@ -109,11 +149,17 @@ export function PeliculaClient({
                   <div key={sala.id}>
                     <h2 className="section-title">
                       {sala.nombre}{" "}
-                      {sala.tipo && <span className="text-muted-foreground">· {sala.tipo}</span>}
+                      {sala.tipo && (
+                        <span className="text-muted-foreground">
+                          · {sala.tipo}
+                        </span>
+                      )}
                     </h2>
+
                     <p className="mb-3 mt-2 text-sm uppercase tracking-widest text-muted-foreground">
                       Horarios
                     </p>
+
                     <div className="flex flex-wrap gap-3">
                       {funciones.map((fn) => (
                         <button
@@ -125,11 +171,16 @@ export function PeliculaClient({
                               : "border-border bg-surface-2 hover:border-primary hover:text-primary"
                           }`}
                         >
-                          <span className="block text-lg font-semibold">{fn.hora}</span>
-                          <span className="text-xs">{fn.formato}</span>
+                          <span className="block text-lg font-semibold">
+                            {fn.hora}
+                          </span>
+                          <span className="text-xs">
+                            {fn.formato}
+                          </span>
                         </button>
                       ))}
                     </div>
+
                     <div className="mt-6 h-px bg-border" />
                   </div>
                 ))}
@@ -150,7 +201,9 @@ export function PeliculaClient({
                     Continuar
                   </Link>
                 ) : (
-                  <span className="btn-primary pointer-events-none px-10 opacity-50">Continuar</span>
+                  <span className="btn-primary pointer-events-none px-10 opacity-50">
+                    Continuar
+                  </span>
                 )}
               </div>
             </>
@@ -164,29 +217,64 @@ export function PeliculaClient({
             alt={`Póster de ${pelicula.titulo}`}
             className="mx-auto mt-6 aspect-[2/3] w-2/3 object-cover"
           />
+
           <div className="p-6">
-            <h2 className="text-2xl tracking-wide">{pelicula.titulo}</h2>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{pelicula.sinopsis}</p>
+            <h2 className="text-2xl tracking-wide">
+              {pelicula.titulo}
+            </h2>
+
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {pelicula.sinopsis}
+            </p>
+
             <dl className="mt-5 space-y-1.5 text-sm">
-              <Dato etiqueta="Clasificación" valor={pelicula.clasificacion} />
-              <Dato etiqueta="Género" valor={pelicula.genero} />
-              <Dato etiqueta="Director" valor={pelicula.director} />
-              <Dato etiqueta="Actores" valor={pelicula.actor} />
-              <Dato etiqueta="Estudio" valor={pelicula.estudio} />
+              <Dato
+                etiqueta="Clasificación"
+                valor={pelicula.clasificacion}
+              />
+              <Dato
+                etiqueta="Género"
+                valor={pelicula.genero}
+              />
+              <Dato
+                etiqueta="Director"
+                valor={pelicula.director}
+              />
+              <Dato
+                etiqueta="Actores"
+                valor={pelicula.actor}
+              />
+              <Dato
+                etiqueta="Estudio"
+                valor={pelicula.estudio}
+              />
             </dl>
           </div>
         </aside>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
 
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+function Dato({
+  etiqueta,
+  valor,
+}: {
+  etiqueta: string;
+  valor: string;
+}) {
   if (!valor) return null;
+
   return (
     <div className="flex gap-2">
-      <dt className="font-semibold text-secondary">{etiqueta}:</dt>
-      <dd className="text-muted-foreground">{valor}</dd>
+      <dt className="font-semibold text-secondary">
+        {etiqueta}:
+      </dt>
+      <dd className="text-muted-foreground">
+        {valor}
+      </dd>
     </div>
   );
 }
