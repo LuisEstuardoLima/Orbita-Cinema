@@ -373,6 +373,102 @@ export async function desactivarSala(
 }
 
 /**
+ * SCRUM-124: eliminar una sala (baja lógica, nunca un DELETE).
+ *
+ * Marca `activa = false` y `eliminada = true` para que la sala desaparezca
+ * del listado del panel, y desactiva en cascada todas sus funciones activas
+ * (`funcion.activa = false`). Las filas se conservan por auditoría y para no
+ * invalidar reservas o boletos ya emitidos.
+ */
+export async function eliminarSala(
+  id: number,
+): Promise<ActionResult> {
+  const denied = await assertAdmin();
+
+  if (denied) {
+    return {
+      ok: false,
+      error: denied,
+    };
+  }
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return {
+      ok: false,
+      error: "Sala inválida.",
+    };
+  }
+
+  const admin = createAdminClient();
+
+  // Validar que la sala exista y no esté ya eliminada.
+  const { data: sala, error: lecturaError } = await admin
+    .from("sala")
+    .select("id, nombre, activa, eliminada")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (lecturaError) {
+    return {
+      ok: false,
+      error: `No se pudo consultar la sala: ${lecturaError.message}`,
+    };
+  }
+
+  if (!sala) {
+    return {
+      ok: false,
+      error: "La sala no existe.",
+    };
+  }
+
+  const s = sala as Pick<
+    SalaRow,
+    "id" | "nombre" | "activa" | "eliminada"
+  > | null;
+
+  if (!s || s.eliminada) {
+    return {
+      ok: false,
+      error: "La sala ya está eliminada.",
+    };
+  }
+
+  // Cascada: desactivar todas las funciones activas de esta sala.
+  const { error: errFunciones } = await admin
+    .from("funcion")
+    .update({ activa: false })
+    .eq("id_sala", id);
+
+  if (errFunciones) {
+    return {
+      ok: false,
+      error: `No se pudieron desactivar las funciones de la sala: ${errFunciones.message}`,
+    };
+  }
+
+  // Marcar la sala como eliminada (baja lógica).
+  const { error } = await admin
+    .from("sala")
+    .update({
+      activa: false,
+      eliminada: true,
+    })
+    .eq("id", id);
+
+  if (error) {
+    return {
+      ok: false,
+      error: `No se pudo eliminar la sala: ${error.message}`,
+    };
+  }
+
+  revalidarSalas();
+
+  return { ok: true };
+}
+
+/**
  * SCRUM-109: reactivar una sala (interruptor de Estado del panel).
  *
  * Camino inverso de `desactivarSala`: la fila nunca se borró, solo estaba

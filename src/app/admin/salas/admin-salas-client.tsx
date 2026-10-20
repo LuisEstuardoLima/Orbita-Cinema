@@ -10,7 +10,7 @@
  */
 
 import { useState, useTransition, type FormEvent } from "react";
-import { Armchair, Pencil, Plus, Search, Tag } from "lucide-react";
+import { Armchair, Pencil, Plus, Search, Tag, Trash } from "lucide-react";
 import Link from "next/link";
 
 import { Modal } from "@/components/cinema/Modal";
@@ -22,6 +22,7 @@ import {
   crearSala,
   desactivarSala,
   editarSala,
+  eliminarSala,
   guardarPreciosSala,
 } from "./actions";
 
@@ -66,6 +67,8 @@ export function AdminSalasClient({
 
   const [aDesactivar, setADesactivar] =
     useState<SalaAdmin | null>(null);
+
+  const [aEliminar, setAEliminar] = useState<SalaAdmin | null>(null);
 
   // SCRUM-121: sala cuyo modal de precios está abierto.
   const [enPrecios, setEnPrecios] =
@@ -222,6 +225,30 @@ export function AdminSalasClient({
         res.ok
           ? {
               texto: `"${nombre}" fue desactivada correctamente.`,
+              ok: true,
+            }
+          : {
+              texto: res.error,
+              ok: false,
+            },
+      );
+    });
+  };
+
+  const confirmarEliminacion = () => {
+    if (!aEliminar) return;
+
+    const { id, nombre } = aEliminar;
+
+    setAEliminar(null);
+
+    startTransition(async () => {
+      const res = await eliminarSala(id);
+
+      setMensaje(
+        res.ok
+          ? {
+              texto: `"${nombre}" fue eliminada correctamente.`,
               ok: true,
             }
           : {
@@ -431,19 +458,34 @@ export function AdminSalasClient({
                     {soloLectura ? (
                       <span className="text-xs text-muted-foreground">Solo consulta</span>
                     ) : (
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        onClick={() => {
-                          setMensaje(null);
-                          setError(null);
-                          setFormulario(sala);
-                        }}
-                        disabled={pendiente}
-                      >
-                        <Pencil className="h-4 w-4" />
-                        Editar
-                      </button>
+                      <div className="flex flex-col gap-3 w-full">
+                        <button
+                          type="button"
+                          className="btn-primary text-xs px-3 py-2 w-full text-left"
+                          onClick={() => {
+                            setMensaje(null);
+                            setError(null);
+                            setFormulario(sala);
+                          }}
+                          disabled={pendiente}
+                        >
+                          <Pencil className="h-3 w-3 shrink-0" />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-danger text-xs px-3 py-2 w-full text-left"
+                          onClick={() => {
+                            setMensaje(null);
+                            setError(null);
+                            setAEliminar(sala);
+                          }}
+                          disabled={pendiente}
+                        >
+                          <Trash className="h-3 w-3 shrink-0" />
+                          Eliminar
+                        </button>
+                      </div>
                     )}
                   </td>
 
@@ -759,6 +801,43 @@ export function AdminSalasClient({
         <p className="mt-3 text-sm text-muted-foreground">
           Sus funciones programadas dejarán de mostrarse en la cartelera mientras
           la sala esté desactivada.
+        </p>
+      </Modal>
+
+      {/* Eliminar sala */}
+      <Modal
+        open={!!aEliminar}
+        title="Eliminar sala"
+        onClose={() => setAEliminar(null)}
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn-ghost"
+              onClick={() => setAEliminar(null)}
+              disabled={pendiente}
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={confirmarEliminacion}
+              disabled={pendiente}
+            >
+              {pendiente ? "Procesando..." : "Eliminar"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Al eliminar{" "}
+          <span className="font-semibold text-foreground">
+            {aEliminar?.nombre}
+          </span>{" "}
+          se quitará del panel de administración y se desactivarán sus
+          funciones programadas. Esta acción no se puede deshacer.
         </p>
       </Modal>
     </>

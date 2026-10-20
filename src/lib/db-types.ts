@@ -25,6 +25,7 @@ export type SalaRow = {
   capacidad: number | null;
   tipo_sala: string | null;
   activa: boolean;
+  eliminada: boolean; // true = oculta del panel admin (botón Eliminar); nunca se borra la fila
   // SCRUM-121 (sprint3-precios.sql): precio en quetzales por tipo de entrada.
   // NULL = sin precio capturado (o columna aún no creada en la base).
   precio_adulto: number | null;

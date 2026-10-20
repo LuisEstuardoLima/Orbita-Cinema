@@ -24,7 +24,7 @@ export type SalaAdmin = {
   precios: PreciosSala;
 };
 
-const COLUMNAS_SALA = "id, nombre, capacidad, tipo_sala, activa";
+const COLUMNAS_SALA = "id, nombre, capacidad, tipo_sala, activa, eliminada";
 const COLUMNAS_PRECIO = Object.values(COLUMNA_PRECIO).join(", ");
 
 /** numeric de Postgres puede llegar como número o como texto: se normaliza a number | null. */
@@ -92,7 +92,9 @@ export async function listSalasAdmin(): Promise<SalaAdmin[]> {
   );
 
   // Sin las columnas de precio, esos campos llegan undefined y aPrecio los deja en null.
+  // Las salas marcadas como eliminada no se muestran en el panel (botón Eliminar).
   return (salas.data as unknown as SalaRow[])
+    .filter((s) => !s.eliminada)
     .map((s) => ({
       id: s.id,
       nombre: s.nombre,
