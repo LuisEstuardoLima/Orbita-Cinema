@@ -52,8 +52,8 @@ export async function getConfiguracionSistema(): Promise<ConfiguracionSistema> {
 
   if (
     !Number.isFinite(porcentajeRecargo) ||
-    porcentajeRecargo < 0 ||
-    porcentajeRecargo > 100
+    porcentajeRecargo <= 0 ||
+    porcentajeRecargo >= 100
   ) {
     throw new Error(
       "El porcentaje de recargo almacenado no es válido.",

@@ -8,6 +8,7 @@ import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { SiteFooter } from "@/components/cinema/SiteFooter";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import { Modal } from "@/components/cinema/Modal";
+import { useTimedMessage } from "@/lib/use-timed-message";
 import { getMovie } from "@/lib/cinema-data";
 import { ContadorBloqueo } from "@/components/cinema/ContadorBloqueo";
 import { datosInvitadoSchema, datosTarjetaSchema, METODOS_PAGO, numeroReserva, quetzales, soloDigitos, type Cantidades, type DatosInvitado, type DatosTarjeta, type MetodoPago } from "@/lib/compra";
@@ -64,7 +65,8 @@ export function PagoClient(search: Props) {
     cvv: "",
   });
   const [erroresTarjeta, setErroresTarjeta] = useState<Partial<Record<keyof DatosTarjeta, string>>>({});
-  const [errorPago, setErrorPago] = useState<string | null>(null);
+  const { mensaje: errorPago, setMensaje: setErrorPago } =
+    useTimedMessage(8000);
   // Aviso inmediato al teclear letras en tarjeta, vencimiento o CVV.
   const [avisosNumeros, setAvisosNumeros] = useState<Record<"numero" | "vencimiento" | "cvv", boolean>>({
     numero: false,
@@ -386,7 +388,7 @@ export function PagoClient(search: Props) {
                     <p>{search.cuenta.telefono || "—"}</p>
                   </div>
                   <p className="text-muted-foreground">
-                    Compras con los datos de tu cuenta; no es necesario capturarlos de nuevo.
+                    Compras con los datos de tu cuenta.
                   </p>
                 </div>
               ) : (
@@ -455,7 +457,7 @@ export function PagoClient(search: Props) {
               </div>
               {factura !== "NIT" && (
                 <p className="text-xs text-muted-foreground">
-                  Factura C/F: los campos de facturación quedan bloqueados.
+                  C/F: Consumidor Final
                 </p>
               )}
             </div>
@@ -600,7 +602,7 @@ export function PagoClient(search: Props) {
               onChange={(e) => setAceptaTerminos(e.target.checked)}
               className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
             />
-            He leído y estoy de acuerdo con los Términos y Condiciones y Aviso de Privacidad
+            He leído y acepto los Términos y Condiciones y Aviso de Privacidad.
           </label>
 
           <div className="mt-6 flex justify-end">
@@ -780,7 +782,7 @@ export function PagoClient(search: Props) {
               className="btn-secondary inline-flex items-center gap-2 text-xs"
             >
               <Download className="h-4 w-4" />
-              Descargar boleto (PNG)
+              Descargar boleto (Imágen)
             </button>
             <button
               type="button"

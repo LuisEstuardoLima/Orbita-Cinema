@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useState,
   useTransition,
   type FormEvent,
@@ -12,6 +11,7 @@ import {
   Settings,
 } from "lucide-react";
 
+import { useTimedMessage } from "@/lib/use-timed-message";
 import { guardarPorcentajeRecargo } from "./actions";
 
 export function AdminConfiguracionClient({
@@ -19,34 +19,35 @@ export function AdminConfiguracionClient({
 }: {
   porcentajeRecargo: number;
 }) {
-  const [valor, setValor] = useState(
-    String(porcentajeRecargo),
+  const formatearPorcentaje = (
+    n: number,
+  ): string => {
+    const partes = n
+      .toFixed(2)
+      .replace(/\.00$/, "")
+      .replace(/(\.\d*?[1-9])0+$/, "$1");
+    return partes;
+  };
+
+  // `valorEditado` es lo que se escribe y se muestra en el input mientras se teclea.
+  const [valorEditado, setValorEditado] = useState(
+    formatearPorcentaje(porcentajeRecargo),
+  );
+
+  // `valorGuardado` es el último valor guardado con éxito; solo se actualiza tras
+  // una respuesta positiva del servidor.
+  const [valorGuardado, setValorGuardado] = useState(
+    porcentajeRecargo,
   );
 
   const [pendiente, startTransition] =
     useTransition();
 
-  const [error, setError] =
+  const [errorCampo, setErrorCampo] =
     useState<string | null>(null);
 
-  const [mensaje, setMensaje] =
-    useState<string | null>(null);
-
-  /**
-   * Los mensajes de éxito desaparecen
-   * automáticamente después de 7 segundos.
-   */
-  useEffect(() => {
-    if (!mensaje) return;
-
-    const timer = setTimeout(
-      () => setMensaje(null),
-      7000,
-    );
-
-    return () =>
-      clearTimeout(timer);
-  }, [mensaje]);
+  const { mensaje, setMensaje, clear } =
+    useTimedMessage(8000);
 
   const validarCliente = (
     valorIngresado: string,
@@ -65,12 +66,12 @@ export function AdminConfiguracionClient({
       return "El porcentaje de recargo debe ser un número válido.";
     }
 
-    if (numero < 0) {
-      return "El porcentaje de recargo no puede ser negativo.";
+    if (numero <= 0) {
+      return "El porcentaje de recargo debe ser mayor que 0 %.";
     }
 
-    if (numero > 100) {
-      return "El porcentaje de recargo no puede ser mayor que 100 %.";
+    if (numero >= 100) {
+      return "El porcentaje de recargo debe ser menor que 100 %.";
     }
 
     if (
@@ -90,14 +91,14 @@ export function AdminConfiguracionClient({
   ) => {
     e.preventDefault();
 
-    setError(null);
-    setMensaje(null);
+    setErrorCampo(null);
+    clear();
 
     const validacion =
-      validarCliente(valor);
+      validarCliente(valorEditado);
 
     if (validacion) {
-      setError(validacion);
+      setErrorCampo(validacion);
       return;
     }
 
@@ -111,14 +112,16 @@ export function AdminConfiguracionClient({
         );
 
       if (!resultado.ok) {
-        setError(resultado.error);
+        setMensaje(resultado.error);
         return;
       }
 
-      setValor(
-        String(
-          resultado.porcentajeRecargo,
-        ),
+      const guardado =
+        resultado.porcentajeRecargo;
+
+      setValorGuardado(guardado);
+      setValorEditado(
+        formatearPorcentaje(guardado),
       );
 
       setMensaje(
@@ -146,15 +149,6 @@ export function AdminConfiguracionClient({
           className="rounded-md border border-primary/40 bg-primary/10 p-3 text-center text-sm text-green-600"
         >
           {mensaje}
-        </div>
-      )}
-
-      {error && (
-        <div
-          role="alert"
-          className="rounded-md border border-destructive bg-destructive/10 p-3 text-center text-sm text-destructive"
-        >
-          {error}
         </div>
       )}
 
@@ -200,18 +194,18 @@ export function AdminConfiguracionClient({
                 max={100}
                 step="0.01"
                 required
-                value={valor}
+                value={valorEditado}
                 onChange={(e) => {
-                  setValor(
-                    e.target.value,
-                  );
+                  const valor = e.target.value;
 
-                  if (error) {
-                    setError(null);
-                  }
+                  // Impide escribir más de dos cifras decimales. Permite estados
+                  // intermedios (p. ej. "5.") para que la edición sea normal.
+                  if (/^(\d*\.?\d{0,2})?$/.test(valor)) {
+                    setValorEditado(valor);
 
-                  if (mensaje) {
-                    setMensaje(null);
+                    if (errorCampo) {
+                      setErrorCampo(null);
+                    }
                   }
                 }}
                 className="field pl-9 pr-12"
@@ -235,15 +229,22 @@ export function AdminConfiguracionClient({
             </p>
           </div>
 
+          {errorCampo && (
+            <p
+              className="mt-2 text-sm text-destructive"
+              id="recargo-error"
+            >
+              {errorCampo}
+            </p>
+          )}
+
           <div className="rounded-md border border-border bg-surface-2 p-4">
             <p className="text-sm text-muted-foreground">
               Recargo actualmente configurado
             </p>
 
             <p className="mt-1 text-2xl font-semibold text-primary">
-              {Number(valor || 0).toFixed(
-                2,
-              )}
+              {formatearPorcentaje(valorGuardado)}
               %
             </p>
           </div>

@@ -22,8 +22,8 @@ type ActionResult =
  *
  * - obligatorio;
  * - numérico;
- * - no negativo;
- * - máximo 100 %;
+ * - estrictamente mayor que 0 %;
+ * - estrictamente menor que 100 %;
  * - máximo 2 decimales.
  */
 const schema = z.object({
@@ -52,13 +52,19 @@ const schema = z.object({
       .finite(
         "El porcentaje de recargo debe ser un número válido.",
       )
-      .min(
-        0,
-        "El porcentaje de recargo no puede ser negativo.",
+      .refine(
+        (valor) => valor > 0,
+        {
+          message:
+            "El porcentaje de recargo debe ser mayor que 0 %.",
+        },
       )
-      .max(
-        100,
-        "El porcentaje de recargo no puede ser mayor que 100 %.",
+      .refine(
+        (valor) => valor < 100,
+        {
+          message:
+            "El porcentaje de recargo debe ser menor que 100 %.",
+        },
       )
       .refine(
         (valor) =>
