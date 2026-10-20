@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { SiteHeader } from "@/components/cinema/SiteHeader";
+import { SiteFooter } from "@/components/cinema/SiteFooter";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import {
   B15,
@@ -88,10 +89,10 @@ export function EntradasClient({
 
   if (!datos.ok) {
     return (
-      <div className="min-h-screen">
+      <div className="flex min-h-screen flex-col">
         <SiteHeader />
 
-        <main className="mx-auto max-w-[1100px] px-6 py-10">
+        <main className="mx-auto w-full max-w-[1100px] flex-1 px-6 py-10">
           <FunctionHeader
             title="Función no disponible"
             subtitle="Vuelve a la cartelera para elegir otra función."
@@ -115,6 +116,8 @@ export function EntradasClient({
             </div>
           </section>
         </main>
+
+        <SiteFooter />
       </div>
     );
   }
@@ -147,10 +150,10 @@ export function EntradasClient({
       : TIPOS_ENTRADA;
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
 
-      <main className="mx-auto max-w-[1100px] px-6 py-10">
+      <main className="mx-auto w-full max-w-[1100px] flex-1 px-6 py-10">
         <FunctionHeader
           title={
             funcion.pelicula
@@ -321,6 +324,8 @@ export function EntradasClient({
           </div>
         </section>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

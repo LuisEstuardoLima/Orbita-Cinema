@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { CheckCircle2, Download, Printer } from "lucide-react";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
+import { SiteFooter } from "@/components/cinema/SiteFooter";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import { Modal } from "@/components/cinema/Modal";
 import { getMovie } from "@/lib/cinema-data";
@@ -302,9 +303,9 @@ export function PagoClient(search: Props) {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
-      <main className="mx-auto max-w-[1400px] px-6 py-10">
+      <main className="mx-auto w-full max-w-[1400px] flex-1 px-6 py-10">
         <FunctionHeader
           title={`${movie.title} · ${search.hall || "Sala 1 Regular 2D"} · ${search.time || "18:00"} Hrs.`}
           subtitle={search.format || "2D Doblada / Esp"}
@@ -578,6 +579,8 @@ export function PagoClient(search: Props) {
           </div>
         </section>
       </main>
+
+      <SiteFooter />
 
       {paso === "eleccion" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { bloquearAsientosSeleccion, consultarOcupacion, liberarBloqueo } from "./actions";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
+import { SiteFooter } from "@/components/cinema/SiteFooter";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import {
   etiquetaFuncion,
@@ -61,17 +62,20 @@ export function AsientosClient(search: Props) {
     asientosOcupados,
     avisoVencido = false,
   } = search;
+
   const router = useRouter();
 
   const totalEntradas = adulto + tercera + ninos;
 
   // Agrupa asientos por fila para dibujar el mapa.
   const asientosPorFila = new Map<string, AsientoRow[]>();
+
   for (const asiento of distribucion) {
     const lista = asientosPorFila.get(asiento.fila) ?? [];
     lista.push(asiento);
     asientosPorFila.set(asiento.fila, lista);
   }
+
   const filasOrdenadas = Array.from(asientosPorFila.keys()).sort();
 
   // SCRUM-120: la ocupación arranca con lo que trajo el servidor y se mantiene al día sola.
@@ -83,6 +87,7 @@ export function AsientosClient(search: Props) {
   const [limitReached, setLimitReached] = useState(false);
   const [bloqueando, setBloqueando] = useState(false);
   const [errorBloqueo, setErrorBloqueo] = useState<string | null>(null);
+
   // El aviso de compra vencida nace visible (viene de /pago) y se oculta solo pasados
   // DURACION_AVISO_MS, para no dejarlo pegado en pantalla.
   const [mostrarVencido, setMostrarVencido] = useState(avisoVencido);
@@ -102,14 +107,21 @@ export function AsientosClient(search: Props) {
   // pestaña. Un asiento que otro cliente bloquea o reserva pasa a "Ocupado"; uno cuyo bloqueo
   // venció vuelve a verse libre. Sin recargar la página.
   const consultando = useRef(false);
+
   const actualizarOcupacion = useCallback(async () => {
     if (consultando.current || idFuncion <= 0) return;
+
     consultando.current = true;
+
     try {
       const ids = await consultarOcupacion(idFuncion);
+
       if (ids) {
         setOcupadosIds((prev) => {
-          const igual = prev.length === ids.length && prev.every((id) => ids.includes(id));
+          const igual =
+            prev.length === ids.length &&
+            prev.every((id) => ids.includes(id));
+
           return igual ? prev : ids;
         });
       }
@@ -120,12 +132,21 @@ export function AsientosClient(search: Props) {
 
   useEffect(() => {
     if (idFuncion <= 0) return;
+
     const alVolver = () => {
-      if (!document.hidden) void actualizarOcupacion();
+      if (!document.hidden) {
+        void actualizarOcupacion();
+      }
     };
-    const timer = window.setInterval(alVolver, INTERVALO_OCUPACION_MS);
+
+    const timer = window.setInterval(
+      alVolver,
+      INTERVALO_OCUPACION_MS,
+    );
+
     document.addEventListener("visibilitychange", alVolver);
     window.addEventListener("focus", alVolver);
+
     return () => {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", alVolver);
@@ -136,46 +157,72 @@ export function AsientosClient(search: Props) {
   // Si otro cliente tomó un asiento que yo tenía elegido, se quita de mi selección y se avisa.
   useEffect(() => {
     const ocupados = new Set(ocupadosIds);
+
     const tomados = selected.filter((key) => {
       const m = /^([A-Za-z]+)(\d+)$/.exec(key);
+
       const id = m
-        ? distribucion.find((a) => a.fila === m[1] && a.numero === Number(m[2]))?.id
+        ? distribucion.find(
+            (a) =>
+              a.fila === m[1] &&
+              a.numero === Number(m[2]),
+          )?.id
         : undefined;
+
       return id !== undefined && ocupados.has(id);
     });
+
     if (tomados.length === 0) return;
-    setSelected((s) => s.filter((key) => !tomados.includes(key)));
+
+    setSelected((s) =>
+      s.filter((key) => !tomados.includes(key)),
+    );
+
     setLimitReached(false);
     setAvisoTomados(tomados);
   }, [ocupadosIds, selected, distribucion]);
 
-  // Los avisos no deben quedarse en pantalla todo el tiempo: solos se ocultan pasados
-  // DURACION_AVISO_MS. El de tomados se reinicia si vuelven a tomarme asientos, porque cada
-  // aviso nuevo es un array distinto.
+  // Los avisos no deben quedarse en pantalla todo el tiempo.
   useEffect(() => {
     if (!avisoVencido) return;
-    const id = window.setTimeout(() => setMostrarVencido(false), DURACION_AVISO_MS);
+
+    const id = window.setTimeout(
+      () => setMostrarVencido(false),
+      DURACION_AVISO_MS,
+    );
+
     return () => window.clearTimeout(id);
   }, [avisoVencido]);
 
   useEffect(() => {
     if (avisoTomados.length === 0) return;
-    const id = window.setTimeout(() => setAvisoTomados([]), DURACION_AVISO_MS);
+
+    const id = window.setTimeout(
+      () => setAvisoTomados([]),
+      DURACION_AVISO_MS,
+    );
+
     return () => window.clearTimeout(id);
   }, [avisoTomados]);
 
   const esOcupado = (fila: string, numero: number) =>
     setOcupados.has(
-      distribucion.find((a) => a.fila === fila && a.numero === numero)?.id ?? -1,
+      distribucion.find(
+        (a) =>
+          a.fila === fila &&
+          a.numero === numero,
+      )?.id ?? -1,
     );
 
-  const seatKey = (fila: string, numero: number) => `${fila}${numero}`;
+  const seatKey = (fila: string, numero: number) =>
+    `${fila}${numero}`;
 
   const estaSeleccionado = (fila: string, numero: number) =>
     selected.includes(seatKey(fila, numero));
 
   const toggle = (fila: string, numero: number) => {
-    if (esOcupado(fila, numero)) return; // no se puede seleccionar un asiento ocupado
+    if (esOcupado(fila, numero)) return;
+
     setAvisoTomados([]);
 
     const key = seatKey(fila, numero);
@@ -185,30 +232,39 @@ export function AsientosClient(search: Props) {
         setLimitReached(false);
         return s.filter((x) => x !== key);
       }
+
       if (s.length >= totalEntradas) {
         setLimitReached(true);
         return s;
       }
+
       return [...s, key];
     });
   };
 
   const cantidadSeleccionada = selected.length;
-  const seleccionCompleta = cantidadSeleccionada === totalEntradas && totalEntradas > 0;
 
-  // Ordena asientos por fila ascendente (case-insensitive) y luego por número ascendente.
-  // Ejemplo: F10, F2, F6, F5 -> F2, F5, F6, F10
+  const seleccionCompleta =
+    cantidadSeleccionada === totalEntradas &&
+    totalEntradas > 0;
+
+  // Ordena asientos por fila ascendente y luego por número.
   const ordenarAsientos = (asientos: string[]): string[] => {
     return [...asientos].sort((a, b) => {
       const matchA = /^([A-Za-z]+)(\d+)$/.exec(a);
       const matchB = /^([A-Za-z]+)(\d+)$/.exec(b);
 
-      if (!matchA || !matchB) return a.localeCompare(b);
+      if (!matchA || !matchB) {
+        return a.localeCompare(b);
+      }
 
       const [, filaA = "", numA = "0"] = matchA;
       const [, filaB = "", numB = "0"] = matchB;
 
-      const cmpFila = filaA.toLowerCase().localeCompare(filaB.toLowerCase());
+      const cmpFila = filaA
+        .toLowerCase()
+        .localeCompare(filaB.toLowerCase());
+
       if (cmpFila !== 0) return cmpFila;
 
       return Number(numA) - Number(numB);
@@ -239,32 +295,45 @@ export function AsientosClient(search: Props) {
       })
     : null;
 
-  // SCRUM-119 (criterio 1): "Continuar" bloquea los asientos 5 minutos a nombre del cliente y
-  // solo entonces pasa al pago. Si otro cliente se adelantó, avisa y recarga el mapa.
+  // SCRUM-119: bloquea los asientos antes de pasar al pago.
   const continuar = async () => {
     if (!continuarHref || bloqueando) return;
+
     setBloqueando(true);
     setErrorBloqueo(null);
+
     const res = await bloquearAsientosSeleccion({
       idFuncion,
-      cantidades: { adulto, tercera, ninos },
+      cantidades: {
+        adulto,
+        tercera,
+        ninos,
+      },
       asientos: selected,
     });
+
     if (!res.ok) {
       setErrorBloqueo(res.error);
       setBloqueando(false);
-      void actualizarOcupacion(); // el mapa muestra ya lo que tomó el otro cliente
+
+      void actualizarOcupacion();
       return;
     }
+
     router.push(continuarHref);
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
-      <main className="mx-auto max-w-[1400px] px-6 py-10">
+
+      <main className="mx-auto w-full max-w-[1400px] flex-1 px-6 py-10">
         <FunctionHeader
-          title={resumen ? resumen.funcion.pelicula : "Función no disponible"}
+          title={
+            resumen
+              ? resumen.funcion.pelicula
+              : "Función no disponible"
+          }
           subtitle={
             resumen
               ? etiquetaFuncion(resumen.funcion)
@@ -277,8 +346,8 @@ export function AsientosClient(search: Props) {
             role="alert"
             className="mb-6 rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive"
           >
-            El tiempo para completar tu compra venció y tus asientos fueron liberados. Elige tus
-            asientos de nuevo.
+            El tiempo para completar tu compra venció y tus asientos fueron liberados.
+            Elige tus asientos de nuevo.
           </p>
         )}
 
@@ -306,16 +375,30 @@ export function AsientosClient(search: Props) {
             <div className="overflow-x-auto">
               <div className="mx-auto w-fit">
                 {filasOrdenadas.map((fila) => (
-                  <div key={fila} className="mb-1.5 flex items-center gap-2">
-                    <span className="w-4 text-xs text-muted-foreground">{fila}</span>
+                  <div
+                    key={fila}
+                    className="mb-1.5 flex items-center gap-2"
+                  >
+                    <span className="w-4 text-xs text-muted-foreground">
+                      {fila}
+                    </span>
+
                     <div className="flex gap-1.5">
                       {asientosPorFila.get(fila)?.map((asiento) => {
-                        const ocupado = esOcupado(asiento.fila, asiento.numero);
+                        const ocupado = esOcupado(
+                          asiento.fila,
+                          asiento.numero,
+                        );
+
                         const seleccionado = estaSeleccionado(
                           asiento.fila,
                           asiento.numero,
                         );
-                        const clave = seatKey(asiento.fila, asiento.numero);
+
+                        const clave = seatKey(
+                          asiento.fila,
+                          asiento.numero,
+                        );
 
                         if (asiento.estado !== "normal") {
                           return (
@@ -324,13 +407,15 @@ export function AsientosClient(search: Props) {
                               type="button"
                               disabled
                               aria-label={`${asiento.fila}${asiento.numero} — ${asiento.estado}`}
-                              className={`flex h-8 w-8 select-none items-center justify-center rounded-[4px] border text-[11px] font-medium transition-all cursor-not-allowed opacity-70 ${
+                              className={`flex ${SEAT_SIZE} select-none items-center justify-center ${SEAT_RADIUS} border text-[11px] font-medium transition-all cursor-not-allowed opacity-70 ${
                                 asiento.estado === "pasillo"
                                   ? "border-dashed border-border bg-transparent text-muted-foreground/50"
                                   : "border-transparent bg-muted-foreground/60 text-background"
                               }`}
                             >
-                              {asiento.estado === "pasillo" ? "·" : "×"}
+                              {asiento.estado === "pasillo"
+                                ? "·"
+                                : "×"}
                             </button>
                           );
                         }
@@ -342,20 +427,27 @@ export function AsientosClient(search: Props) {
                           <button
                             key={clave}
                             type="button"
-                            onClick={() => toggle(asiento.fila, asiento.numero)}
+                            onClick={() =>
+                              toggle(
+                                asiento.fila,
+                                asiento.numero,
+                              )
+                            }
                             aria-label={
                               isReserved
                                 ? `${asiento.fila}${asiento.numero} — Ocupado`
                                 : `${asiento.fila}${asiento.numero} — ${
-                                    isSelected ? "Seleccionado" : "Disponible"
+                                    isSelected
+                                      ? "Seleccionado"
+                                      : "Disponible"
                                   }`
                             }
-                            className={`flex h-8 w-8 select-none items-center justify-center rounded-[4px] border text-[11px] font-medium transition-all ${
+                            className={`flex ${SEAT_SIZE} select-none items-center justify-center ${SEAT_RADIUS} border text-[11px] font-medium transition-all ${
                               isReserved
                                 ? "border-transparent bg-muted-foreground/60 text-background cursor-not-allowed opacity-70"
                                 : isSelected
-                                ? "border-primary bg-primary text-primary hover:border-primary hover:bg-primary/90 cursor-pointer"
-                                : "border-primary/50 bg-primary/10 text-primary hover:border-primary hover:bg-primary/20 cursor-pointer"
+                                  ? "border-primary bg-primary text-primary hover:border-primary hover:bg-primary/90 cursor-pointer"
+                                  : "border-primary/50 bg-primary/10 text-primary hover:border-primary hover:bg-primary/20 cursor-pointer"
                             }`}
                           >
                             {asiento.numero}
@@ -370,17 +462,21 @@ export function AsientosClient(search: Props) {
           </section>
 
           <aside className="card-surface h-fit p-6">
-            <h2 className="text-3xl tracking-wide">Reserva:</h2>
+            <h2 className="text-3xl tracking-wide">
+              Reserva:
+            </h2>
 
             <ul className="mt-4 space-y-3 text-sm">
               <li className="flex items-center gap-3">
                 <span className="h-5 w-5 rounded-[4px] border border-border bg-surface-2" />
                 Disponible
               </li>
+
               <li className="flex items-center gap-3">
                 <span className="h-5 w-5 rounded-[4px] border border-primary bg-primary" />
                 Seleccionado
               </li>
+
               <li className="flex items-center gap-3">
                 <span className="h-5 w-5 rounded-[4px] bg-muted-foreground/60" />
                 Reservado
@@ -392,9 +488,12 @@ export function AsientosClient(search: Props) {
             <p className="text-lg">
               Selección:{" "}
               <span className="font-semibold text-primary">
-                {selected.length ? ordenarAsientos(selected).join(", ") : "—"}
+                {selected.length
+                  ? ordenarAsientos(selected).join(", ")
+                  : "—"}
               </span>
             </p>
+
             {limitReached && (
               <p className="mt-2 text-sm text-primary">
                 Has alcanzado el límite máximo de {totalEntradas} asientos.
@@ -403,16 +502,28 @@ export function AsientosClient(search: Props) {
 
             <div className="my-5 h-px bg-border" />
 
-            {/* SCRUM-122: todo el cuadro sale de `calcularResumenCompra` (servidor). */}
-            <h3 className="mb-3 text-xl tracking-wide">Confirmación</h3>
+            <h3 className="mb-3 text-xl tracking-wide">
+              Confirmación
+            </h3>
+
             {resumen ? (
               <dl className="space-y-2 rounded-lg bg-surface-2 p-4 text-sm">
-                <Row label="Película" value={resumen.funcion.pelicula} multilinea />
+                <Row
+                  label="Película"
+                  value={resumen.funcion.pelicula}
+                  multilinea
+                />
+
                 <Row
                   label="Horario"
                   value={`${fechaCortaFuncion(resumen.funcion.fecha)} · ${resumen.funcion.hora} Hrs.`}
                 />
-                <Row label="Sala" value={salaFuncion(resumen.funcion)} />
+
+                <Row
+                  label="Sala"
+                  value={salaFuncion(resumen.funcion)}
+                />
+
                 <div className="mt-2 space-y-2 border-t border-border pt-2">
                   {resumen.lineas
                     .filter((l) => l.cantidad > 0)
@@ -425,19 +536,36 @@ export function AsientosClient(search: Props) {
                       />
                     ))}
                 </div>
+
                 <div className="mt-2 space-y-2 border-t border-border pt-2">
-                  <Row label="Subtotal" value={quetzales(resumen.subtotal)} />
-                  <Row label="Recargo" value={quetzales(resumen.recargo)} />
+                  <Row
+                    label="Subtotal"
+                    value={quetzales(resumen.subtotal)}
+                  />
+
+                  <Row
+                    label="Recargo"
+                    value={quetzales(resumen.recargo)}
+                  />
                 </div>
+
                 <div className="mt-2 border-t border-border pt-2">
-                  <Row label="Total" value={quetzales(resumen.total)} highlight />
+                  <Row
+                    label="Total"
+                    value={quetzales(resumen.total)}
+                    highlight
+                  />
                 </div>
               </dl>
             ) : (
               <div className="rounded-lg bg-surface-2 p-4 text-sm">
-                <p role="alert" className="text-destructive">
+                <p
+                  role="alert"
+                  className="text-destructive"
+                >
                   {errorResumen}
                 </p>
+
                 <Link
                   href="/"
                   className="mt-3 inline-block font-semibold text-primary hover:underline"
@@ -448,15 +576,22 @@ export function AsientosClient(search: Props) {
             )}
 
             {errorBloqueo && (
-              <p role="alert" className="mt-4 text-sm text-destructive">
+              <p
+                role="alert"
+                className="mt-4 text-sm text-destructive"
+              >
                 {errorBloqueo}
               </p>
             )}
 
             <div className="mt-6 flex gap-3">
-              <Link href={volverAEntradas} className="btn-ghost flex-1">
+              <Link
+                href={volverAEntradas}
+                className="btn-ghost flex-1"
+              >
                 Cancelar
               </Link>
+
               {seleccionCompleta && continuarHref ? (
                 <button
                   type="button"
@@ -464,7 +599,9 @@ export function AsientosClient(search: Props) {
                   disabled={bloqueando}
                   className="btn-primary flex-1"
                 >
-                  {bloqueando ? "Bloqueando asientos..." : "Continuar"}
+                  {bloqueando
+                    ? "Bloqueando asientos..."
+                    : "Continuar"}
                 </button>
               ) : (
                 <span
@@ -478,6 +615,8 @@ export function AsientosClient(search: Props) {
           </aside>
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
@@ -494,20 +633,30 @@ function Row({
   highlight?: boolean;
   /** Sin ":" tras la etiqueta (líneas del desglose, p. ej. "2 × Adulto"). */
   plain?: boolean;
-  /** Valor que puede ocupar varias líneas (p. ej. el título de la película): se alinea a la
-   * derecha, con separación de la etiqueta, y la etiqueta no se parte. */
+  /** Valor que puede ocupar varias líneas (p. ej. el título de la película). */
   multilinea?: boolean;
 }) {
   return (
-    <div className={`flex items-center justify-between${multilinea ? " gap-3" : ""}`}>
-      <dt className={`text-muted-foreground${multilinea ? " shrink-0 whitespace-nowrap" : ""}`}>
+    <div
+      className={`flex items-center justify-between${multilinea ? " gap-3" : ""}`}
+    >
+      <dt
+        className={`text-muted-foreground${
+          multilinea
+            ? " shrink-0 whitespace-nowrap"
+            : ""
+        }`}
+      >
         {label}
         {plain ? "" : ":"}
       </dt>
+
       <dd
-        className={`${highlight ? "text-lg font-bold text-primary" : "font-medium"}${
-          multilinea ? " text-right" : ""
-        }`}
+        className={`${
+          highlight
+            ? "text-lg font-bold text-primary"
+            : "font-medium"
+        }${multilinea ? " text-right" : ""}`}
       >
         {value}
       </dd>
