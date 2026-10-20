@@ -398,12 +398,11 @@ export function PagoClient(search: Props) {
                   value={factura}
                   onChange={(e) => setFactura(e.target.value)}
                 >
-                  <option>Elija una opción</option>
                   <option>C/F</option>
                   <option>NIT</option>
                 </select>
               </div>
-              {/* NIT permite capturar; C/F y "Elija una opción" bloquean los campos. */}
+              {/* NIT permite capturar; C/F bloquea los campos. */}
               <div>
                 <label className="label">Nombre</label>
                 <input
@@ -695,6 +694,7 @@ export function PagoClient(search: Props) {
         open={done}
         title="Compra confirmada"
         onClose={() => setDone(false)}
+        sinCerrar
         footer={
           <Link href="/" className="btn-primary" onClick={() => setDone(false)}>
             Volver a cartelera

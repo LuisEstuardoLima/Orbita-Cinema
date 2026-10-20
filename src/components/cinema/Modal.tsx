@@ -8,6 +8,7 @@ export function Modal({
   children,
   footer,
   wide,
+  sinCerrar,
 }: {
   open: boolean;
   title: string;
@@ -15,6 +16,8 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
+  /** Oculta la X: el modal solo se cierra con una acción del footer (p. ej. confirmación de compra). */
+  sinCerrar?: boolean;
 }) {
   if (!open) return null;
   return (
@@ -24,13 +27,15 @@ export function Modal({
       >
         <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
           <h3 className="text-lg tracking-wide">{title}</h3>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="rounded-md p-1 text-muted-foreground transition-colors hover:text-primary"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {!sinCerrar && (
+            <button
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="rounded-md p-1 text-muted-foreground transition-colors hover:text-primary"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
         <div className="px-5 py-5">{children}</div>
         {footer && (
