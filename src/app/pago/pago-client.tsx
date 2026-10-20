@@ -17,6 +17,8 @@ import { procesarPago } from "./actions";
 
 type Props = {
   slug: string;
+  /** Título real de la película según la BD; llega vacío solo si la función ya no existe. */
+  titulo: string;
   hall: string;
   time: string;
   format: string;
@@ -35,7 +37,8 @@ type Props = {
 };
 
 export function PagoClient(search: Props) {
-  const movie = getMovie(search.slug || "batman");
+  // Título real desde la BD (page.tsx); getMovie es solo un respaldo del catálogo estático.
+  const titulo = search.titulo || getMovie(search.slug).title;
   const [done, setDone] = useState(false);
   const [factura, setFactura] = useState("C/F");
   const router = useRouter();
@@ -202,7 +205,7 @@ export function PagoClient(search: Props) {
     ctx.fillText("COMPROBANTE DE COMPRA · BOLETO DE ENTRADA", 64, 110);
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 26px Arial, sans-serif";
-    ctx.fillText(movie.title.slice(0, 34), 64, 160);
+    ctx.fillText(titulo.slice(0, 34), 64, 160);
 
     const filas: [string, string][] = [
       ["Reserva", codigoReserva],
@@ -275,7 +278,7 @@ export function PagoClient(search: Props) {
         <div class="card">
           <h1>ÓRBITA CINEMA</h1>
           <p class="sub">COMPROBANTE DE COMPRA · BOLETO DE ENTRADA</p>
-          <p class="movie">${movie.title}</p>
+          <p class="movie">${titulo}</p>
           <table>
             <tr><td>Número de reserva</td><td>${codigoReserva}</td></tr>
             <tr><td>Comprador</td><td>${nombreComprador || "Invitado"}</td></tr>
@@ -292,9 +295,9 @@ export function PagoClient(search: Props) {
     ventana.document.close();
   };
 
-  // "4242424242424242" -> "4242 4242 4242 4242" (máx. 19 dígitos).
+  // "4242424242424242" -> "4242 4242 4242 4242" (máx. 16 dígitos).
   const formatearNumeroTarjeta = (v: string) =>
-    soloDigitos(v).slice(0, 19).replace(/(\d{4})(?=\d)/g, "$1 ").trim();
+    soloDigitos(v).slice(0, 16).replace(/(\d{4})(?=\d)/g, "$1 ").trim();
 
   // "0728" -> "07/28": la diagonal se inserta sola tras los dos primeros dígitos.
   const formatearVencimiento = (v: string) => {
@@ -307,7 +310,7 @@ export function PagoClient(search: Props) {
       <SiteHeader />
       <main className="mx-auto w-full max-w-[1400px] flex-1 px-6 py-10">
         <FunctionHeader
-          title={`${movie.title} · ${search.hall || "Sala 1 Regular 2D"} · ${search.time || "18:00"} Hrs.`}
+          title={`${titulo} · ${search.hall || "Sala 1 Regular 2D"} · ${search.time || "18:00"} Hrs.`}
           subtitle={search.format || "2D Doblada / Esp"}
         />
 
@@ -714,7 +717,7 @@ export function PagoClient(search: Props) {
             </p>
           )}
           <p className="text-sm text-muted-foreground">
-            {movie.title} · {search.hall || "Sala 1 Regular 2D"} ·{" "}
+            {titulo} · {search.hall || "Sala 1 Regular 2D"} ·{" "}
             {search.time || "18:00"} Hrs. · Asientos{" "}
             {search.seats ? search.seats.split(",").join(", ") : "—"}
           </p>

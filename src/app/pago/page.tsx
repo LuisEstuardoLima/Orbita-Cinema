@@ -4,6 +4,7 @@ import { num, str, toHref, type SP } from "@/lib/search-params";
 import { cantidadesDeParams } from "@/lib/compra";
 import { etiquetaAsiento } from "@/lib/bloqueo";
 import { getBloqueoVigente } from "@/lib/db/bloqueo";
+import { calcularResumenCompra } from "@/lib/db/compra";
 import { getPerfilActual } from "@/lib/auth/perfil";
 import { PagoClient } from "./pago-client";
 
@@ -35,6 +36,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
     redirect(idFuncion > 0 ? toHref("/asientos", { funcion: idFuncion, ...cantidades, vencido: 1 }) : "/");
   }
 
+  // Datos reales de la función (título, sala, hora y formato) desde la BD, para
+  // que el encabezado siempre muestre la película elegida y no una por defecto.
+  const resultado = await calcularResumenCompra(idFuncion, cantidades);
+  const funcion = resultado.ok ? resultado.resumen.funcion : null;
+
   // Ticket INVITADO: con sesión se usan los datos de la cuenta (CA5); sin
   // sesión, el cliente muestra la elección login/invitado (CA1).
   const perfil = await getPerfilActual();
@@ -44,10 +50,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
 
   return (
     <PagoClient
-      slug={str(sp["slug"], "batman")}
-      hall={str(sp["hall"])}
-      time={str(sp["time"])}
-      format={str(sp["format"])}
+      slug={funcion?.slug ?? str(sp["slug"], "batman")}
+      titulo={funcion?.pelicula ?? ""}
+      hall={funcion?.sala ?? str(sp["hall"])}
+      time={funcion?.hora ?? str(sp["time"])}
+      format={funcion?.formato ?? str(sp["format"])}
       seats={bloqueo.asientos.map((a) => etiquetaAsiento(a.fila, a.numero)).join(",")}
       total={bloqueo.total}
       idFuncion={idFuncion}
