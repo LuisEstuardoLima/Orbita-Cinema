@@ -1,6 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import QRCode from "qrcode";
 import {
   datosInvitadoSchema,
   datosTarjetaSchema,
@@ -15,10 +16,17 @@ import { enviarBoletoPorCorreo } from "@/lib/correo";
 /**
  * Resultado del pago. `ultimos4` es lo ÚNICO de la tarjeta que se conserva
  * (CA6); `idReserva` es el número de reserva que ve el cliente en la
- * confirmación (CA6 del registro).
+ * confirmación (CA6 del registro) y `qrDataUrl` es el PNG en base64 del
+ * `codigo_qr` del boleto para mostrarlo y descargarlo en pantalla.
  */
 export type ResultadoPago =
-  | { ok: true; ultimos4: string; idReserva: number; correoEnviado: boolean }
+  | {
+      ok: true;
+      ultimos4: string;
+      idReserva: number;
+      qrDataUrl: string;
+      correoEnviado: boolean;
+    }
   | { ok: false; error: string; vencido?: boolean };
 
 /** Mensajes de los errores que lanza confirmar_compra (sprint3-confirmar-compra.sql). */
@@ -127,8 +135,20 @@ export async function procesarPago(input: {
     return { ok: false, error: "No se pudo registrar la compra. Intenta de nuevo." };
   }
 
+  // Genera el QR del token opaco del boleto para mostrarlo y descargarlo en el modal.
+  const qrDataUrl = await QRCode.toDataURL(fila.out_codigo_qr, {
+    margin: 1,
+    width: 240,
+  }).catch(() => "");
+
   // Best-effort: la compra ya quedó confirmada; si el correo falla, no se
   // revierte nada y la confirmación avisa para que guarde su número ORB-.
   const correoEnviado = await enviarBoletoPorCorreo(fila.out_id_reserva);
-  return { ok: true, ultimos4, idReserva: fila.out_id_reserva, correoEnviado };
+  return {
+    ok: true,
+    ultimos4,
+    idReserva: fila.out_id_reserva,
+    qrDataUrl,
+    correoEnviado,
+  };
 }
