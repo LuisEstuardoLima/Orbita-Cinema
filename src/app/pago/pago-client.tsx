@@ -7,7 +7,7 @@ import { CheckCircle2, Download, Printer } from "lucide-react";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import { Modal } from "@/components/cinema/Modal";
-import { buildFunctionLabel, getMovie } from "@/lib/cinema-data";
+import { getMovie } from "@/lib/cinema-data";
 import { ContadorBloqueo } from "@/components/cinema/ContadorBloqueo";
 import { datosInvitadoSchema, datosTarjetaSchema, METODOS_PAGO, numeroReserva, quetzales, soloDigitos, type Cantidades, type DatosInvitado, type DatosTarjeta, type MetodoPago } from "@/lib/compra";
 import { toHref } from "@/lib/search-params";
@@ -306,8 +306,8 @@ export function PagoClient(search: Props) {
       <SiteHeader />
       <main className="mx-auto max-w-[1400px] px-6 py-10">
         <FunctionHeader
-          title={movie.title}
-          subtitle={buildFunctionLabel(search.hall, search.time, search.format)}
+          title={`${movie.title} · ${search.hall || "Sala 1 Regular 2D"} · ${search.time || "18:00"} Hrs.`}
+          subtitle={search.format || "2D Doblada / Esp"}
         />
 
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
