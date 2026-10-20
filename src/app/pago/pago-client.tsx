@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Download, Printer } from "lucide-react";
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
 import { Modal } from "@/components/cinema/Modal";
@@ -64,6 +64,7 @@ export function PagoClient(search: Props) {
   const [aprobado, setAprobado] = useState(false);
   const [metodo, setMetodo] = useState<MetodoPago>("tarjeta_credito");
   const [idReserva, setIdReserva] = useState<number | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [correoEnviado, setCorreoEnviado] = useState<boolean | null>(null);
 
   // Para que "Iniciar sesión" vuelva a ESTA compra con todos sus parámetros.
@@ -151,12 +152,135 @@ export function PagoClient(search: Props) {
         return;
       }
       setIdReserva(res.idReserva);
+      setQrDataUrl(res.qrDataUrl);
       setCorreoEnviado(res.correoEnviado);
       setAprobado(true);
       setDone(true); // CA3: pago aprobado -> pantalla de confirmación.
     } finally {
       setOcupado(false);
     }
+  };
+
+  const codigoReserva = idReserva !== null ? numeroReserva(idReserva) : "ORB-000000";
+  const nombreComprador = search.cuenta
+    ? `${search.cuenta.nombre} ${search.cuenta.apellido}`.trim()
+    : datos.nombre;
+  const asientosTexto = search.seats ? search.seats.split(",").join(", ") : "—";
+
+  // Genera una imagen PNG completa con los datos del boleto + el código QR.
+  const descargarBoletoPng = async () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 820;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.fillStyle = "#0f0f10";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#1a1a1c";
+    ctx.strokeStyle = "#2d2d32";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(32, 32, canvas.width - 64, canvas.height - 64, 16);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#ef4444";
+    ctx.font = "bold 24px Arial, sans-serif";
+    ctx.fillText("ÓRBITA CINEMA", 64, 84);
+    ctx.fillStyle = "#a1a1aa";
+    ctx.font = "14px Arial, sans-serif";
+    ctx.fillText("COMPROBANTE DE COMPRA · BOLETO DE ENTRADA", 64, 110);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 26px Arial, sans-serif";
+    ctx.fillText(movie.title.slice(0, 34), 64, 160);
+
+    const filas: [string, string][] = [
+      ["Reserva", codigoReserva],
+      ["Comprador", (nombreComprador || "Invitado").slice(0, 36)],
+      ["Sala", search.hall || "Sala 1 Regular 2D"],
+      ["Horario", `${search.time || "18:00"} Hrs.`],
+      ["Asientos", asientosTexto],
+      ["Total pagado", quetzales(search.total || 94.5)],
+    ];
+
+    let y = 210;
+    for (const [etiqueta, valor] of filas) {
+      ctx.fillStyle = "#a1a1aa";
+      ctx.font = "15px Arial, sans-serif";
+      ctx.fillText(etiqueta, 64, y);
+      ctx.fillStyle = etiqueta === "Reserva" ? "#ef4444" : "#ffffff";
+      ctx.font = etiqueta === "Reserva" ? "bold 17px Arial, sans-serif" : "bold 15px Arial, sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(valor, canvas.width - 64, y);
+      ctx.textAlign = "left";
+      y += 38;
+    }
+
+    if (qrDataUrl) {
+      const img = new Image();
+      img.src = qrDataUrl;
+      await new Promise<void>((resolve) => {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+      });
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.roundRect((canvas.width - 236) / 2, 460, 236, 236, 12);
+      ctx.fill();
+      ctx.drawImage(img, (canvas.width - 212) / 2, 472, 212, 212);
+    }
+
+    ctx.fillStyle = "#a1a1aa";
+    ctx.font = "13px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Presenta este código QR en la entrada de la sala.", canvas.width / 2, 732);
+
+    const link = document.createElement("a");
+    link.download = `boleto-${codigoReserva}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+
+  // Abre una ventana lista para imprimir o guardar como PDF desde el navegador.
+  const imprimirBoletoPdf = () => {
+    const ventana = window.open("", "_blank", "width=680,height=840");
+    if (!ventana) return;
+    ventana.document.write(`<!doctype html>
+      <html lang="es"><head><meta charset="utf-8" />
+        <title>Boleto ${codigoReserva} · Órbita Cinema</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 0; padding: 32px; color: #111; }
+          .card { max-width: 480px; margin: 0 auto; border: 2px solid #222; border-radius: 12px; padding: 28px; }
+          h1 { margin: 0 0 4px; font-size: 20px; color: #dc2626; }
+          .sub { margin: 0 0 20px; font-size: 12px; color: #555; }
+          .movie { font-size: 22px; font-weight: bold; margin: 0 0 16px; }
+          table { width: 100%; border-collapse: collapse; font-size: 14px; }
+          td { padding: 6px 0; border-bottom: 1px solid #eee; }
+          td:last-child { text-align: right; font-weight: bold; }
+          .qr { text-align: center; margin-top: 20px; }
+          .qr img { width: 190px; height: 190px; }
+          .note { text-align: center; font-size: 12px; color: #555; margin-top: 8px; }
+        </style>
+      </head><body>
+        <div class="card">
+          <h1>ÓRBITA CINEMA</h1>
+          <p class="sub">COMPROBANTE DE COMPRA · BOLETO DE ENTRADA</p>
+          <p class="movie">${movie.title}</p>
+          <table>
+            <tr><td>Número de reserva</td><td>${codigoReserva}</td></tr>
+            <tr><td>Comprador</td><td>${nombreComprador || "Invitado"}</td></tr>
+            <tr><td>Sala</td><td>${search.hall || "Sala 1 Regular 2D"}</td></tr>
+            <tr><td>Horario</td><td>${search.time || "18:00"} Hrs.</td></tr>
+            <tr><td>Asientos</td><td>${asientosTexto}</td></tr>
+            <tr><td>Total pagado</td><td>${quetzales(search.total || 94.5)}</td></tr>
+          </table>
+          ${qrDataUrl ? `<div class="qr"><img src="${qrDataUrl}" alt="Código QR" /></div>` : ""}
+          <p class="note">Presenta este código QR en la entrada de la sala.</p>
+        </div>
+        <script>window.onload = () => { window.print(); };</script>
+      </body></html>`);
+    ventana.document.close();
   };
 
   return (
@@ -554,6 +678,37 @@ export function PagoClient(search: Props) {
               Q.{(search.total || 94.5).toFixed(2)}
             </span>
           </p>
+          {qrDataUrl && (
+            <div className="my-2 flex flex-col items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrDataUrl}
+                alt={`Código QR del boleto ${codigoReserva}`}
+                className="h-44 w-44 rounded-lg bg-white p-2 shadow"
+              />
+              <span className="text-xs text-muted-foreground">
+                Presenta este código QR en la entrada
+              </span>
+            </div>
+          )}
+          <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={descargarBoletoPng}
+              className="btn-secondary inline-flex items-center gap-2 text-xs"
+            >
+              <Download className="h-4 w-4" />
+              Descargar boleto (PNG)
+            </button>
+            <button
+              type="button"
+              onClick={imprimirBoletoPdf}
+              className="btn-ghost inline-flex items-center gap-2 text-xs"
+            >
+              <Printer className="h-4 w-4" />
+              Guardar PDF / Imprimir
+            </button>
+          </div>
           {correoEnviado === true && (
             <p className="text-sm text-muted-foreground">
               Enviamos tu boleto con código QR a{" "}
@@ -565,7 +720,7 @@ export function PagoClient(search: Props) {
           )}
           {correoEnviado === false && (
             <p className="text-xs text-muted-foreground">
-              No pudimos enviarte el boleto por correo; conserva tu número de reserva.
+              También puedes descargar o guardar en PDF tu boleto aquí arriba.
             </p>
           )}
         </div>
