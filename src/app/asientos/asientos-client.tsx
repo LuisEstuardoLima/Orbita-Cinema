@@ -468,7 +468,7 @@ export function AsientosClient(search: Props) {
 
             <ul className="mt-4 space-y-3 text-sm">
               <li className="flex items-center gap-3">
-                <span className="h-5 w-5 rounded-[4px] border border-border bg-surface-2" />
+                <span className="h-5 w-5 rounded-[4px] border border-primary/50 bg-primary/10" />
                 Disponible
               </li>
 
