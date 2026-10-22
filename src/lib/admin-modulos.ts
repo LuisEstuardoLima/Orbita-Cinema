@@ -4,6 +4,7 @@ import {
   DoorOpen,
   Film,
   LayoutDashboard,
+  ScanLine,
   Settings,
   Users,
   type LucideIcon,
@@ -55,6 +56,15 @@ export const MODULOS_ADMIN: ModuloAdmin[] = [
     descripcion:
       "Programar funciones y horarios por película y sala.",
     icono: Clapperboard,
+    disponible: true,
+  },
+  {
+    // SCRUM-140. SCRUM-135 (listado de entradas vendidas) puede colgar de /admin/entradas.
+    href: "/admin/entradas/validar",
+    nombre: "Entradas",
+    descripcion:
+      "Validar el ingreso de clientes: escanear el QR o buscar la entrada o reserva.",
+    icono: ScanLine,
     disponible: true,
   },
   {

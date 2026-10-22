@@ -170,6 +170,18 @@ No requiere script SQL nuevo: se apoya en lo de SCRUM-119 (`supabase/sprint3-blo
 - **Selección afectada:** si otro cliente toma un asiento que yo tenía elegido, se quita de mi selección y aparece un aviso para elegir otro.
 - **Doble reserva:** el índice único parcial `uq_detalle_reserva_asiento_funcion_activo` (`id_funcion`, `id_asiento` donde el detalle está `bloqueado` o `reservado`) hace que la BD rechace un segundo registro sobre el mismo asiento, aunque falle cualquier validación de la aplicación. Si dos clientes pulsan **Continuar** a la vez, `bloquear_asientos` deja pasar solo a uno; el otro recibe "Alguno de los asientos acaba de ser tomado" y el mapa se actualiza al instante.
 
+## Validación de entradas (SCRUM-140)
+
+Pantalla `/admin/entradas/validar` (módulo **Entradas** del panel; Colaborador y Administrador). **Antes de usarla hay que ejecutar una vez `supabase/sprint4-validar-entrada.sql` en el SQL Editor de Supabase** (agrega `boleto.validado_por` y la función `validar_entrada`; es idempotente) y correr `bun install` (nueva dependencia `jsqr`, el lector de QR).
+
+- **Formas de validar:** escanear el QR con la cámara (o subir una imagen del QR) y búsqueda manual por **ID de entrada** (`boleto.id_boleto`), **número de reserva** (acepta `ORB-000123` o `123`) o el **código del QR** (útil con lectores USB, que "escriben" el código). El QR es el `codigo_qr` que ya genera `confirmar_compra`; esta historia no genera ni duplica QR.
+- **Todo se decide en el servidor:** la Server Action `validarEntrada` exige rol Colaborador/Administrador (`assertRol`), valida el formato de lo recibido y llama a la función SQL `validar_entrada`. Un Cliente o alguien sin sesión no puede validar ni llamando a la acción directamente.
+- **Comprobaciones, en este orden** (la primera que falla rechaza y **no cambia nada**): la reserva existe → corresponde a la función seleccionada → no está cancelada (ni su función) → no fue utilizada → está pagada (`confirmada`). Cada rechazo muestra su motivo.
+- **Atómico:** `validar_entrada` lee la reserva con `FOR UPDATE`, así que dos validaciones simultáneas se serializan; la segunda ve `usada` y recibe "ya validada". Si ocurre un error, PostgreSQL revierte y la reserva no queda como utilizada.
+- **Éxito:** `reserva.estado = 'usada'` y `boleto.fecha_uso = now()` para **toda** la reserva (un solo QR por reserva); los asientos siguen `reservado`. Se muestra el **ID de compra** (`ORB-000123`, RF-060), el ID de entrada, comprador, función, asientos y total.
+- **"Función cancelada":** se considera cancelada una función con `funcion.activa = false`.
+- **Pendiente de coordinar:** SCRUM-135 (listado de entradas) puede colgar de `/admin/entradas`; hoy el menú apunta a `/admin/entradas/validar`.
+
 ## Capa de venta `reserva` — para el Sprint 3 (aún no existe)
 
 Anotado aquí para retomarlo, **sin crear la tabla todavía** porque sus reglas aún no están definidas.

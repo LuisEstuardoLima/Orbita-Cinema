@@ -17,6 +17,7 @@
  * | Sitio público, compra, /perfil |    ✔    |      ✔      |       ✔       |
  * | /admin (inicio del panel)      |         |      ✔      |       ✔       |
  * | /admin/funciones               |         |      ✔      |       ✔       |
+ * | /admin/entradas (validación)   |         |      ✔      |       ✔       |
  * | /admin/peliculas               |         |   consulta  |       ✔       |
  * | /admin/salas (y asientos)      |         |   consulta  |       ✔       |
  * | /admin/configuracion           |         |             |       ✔       |
@@ -83,6 +84,10 @@ export const REGLAS_RUTA: readonly ReglaRuta[] = [
   },
   {
     prefix: "/admin/funciones",
+    roles: ROLES_PANEL,
+  },
+  {
+    prefix: "/admin/entradas",
     roles: ROLES_PANEL,
   },
   {
@@ -153,6 +158,11 @@ const MODIFICAR: readonly ReglaRuta[] = [
   },
   {
     prefix: "/admin/funciones",
+    roles: ROLES_PANEL,
+  },
+  {
+    // SCRUM-140: validar entradas es una acción operativa de ambos roles (no hay modo consulta).
+    prefix: "/admin/entradas",
     roles: ROLES_PANEL,
   },
   {
