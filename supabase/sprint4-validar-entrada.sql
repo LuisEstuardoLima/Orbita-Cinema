@@ -28,6 +28,10 @@
 -- Quién validó el ingreso (auditoría). Nullable: la validación no depende de este dato.
 alter table public.boleto add column if not exists validado_por uuid;
 
+-- Se recrea siempre: Postgres no permite quitar/cambiar los valores por defecto de los parámetros
+-- con create or replace (error 42P13), y la firma cambió al hacer opcional p_funcion.
+drop function if exists public.validar_entrada(bigint, uuid, bigint, bigint, uuid);
+
 create or replace function public.validar_entrada(
   p_funcion    bigint,
   p_codigo_qr  uuid default null,
