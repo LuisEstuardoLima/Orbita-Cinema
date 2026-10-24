@@ -192,6 +192,17 @@ Pantalla `/admin/reportes` (solo **Administrador**; Colaborador y Cliente no ent
 - **Excel:** `/admin/reportes/descargar` recibe los mismos filtros que la pantalla, verifica el rol Administrador en el servidor y arma el `.xlsx` con las mismas columnas, valores y totales que la tabla (`lib/reportes.ts`), con los filtros aplicados escritos arriba del archivo.
 - **Funciones canceladas:** las reservas de una función con `activa = false` no aparecen ni se cuentan (igual que en la validación de entradas), porque el panel no las pasa a `cancelada_funcion` al cancelar la función.
 
+## Reporte de ocupación por sala (SCRUM-143)
+
+Pantalla `/admin/reportes/ocupacion` (pestaña «Ocupación por sala» dentro de Reportes; solo **Administrador**). **Antes de usarla hay que ejecutar una vez `supabase/sprint4-reporte-ocupacion.sql` en el SQL Editor de Supabase** (crea la función de solo lectura `reporte_ocupacion_funcion`; es idempotente). Usa `exceljs`, que ya se instala con `bun install` desde SCRUM-142.
+
+- **Localizar la función:** filtros por fecha (por defecto, de 7 días atrás a 14 adelante; borrar las fechas quita el límite), película, sala y función. Se pueden consultar funciones pasadas, actuales y futuras. Sin coincidencias muestra un mensaje y ningún dato de ocupación.
+- **Indicadores:** capacidad total, asientos ocupados o reservados (con el desglose *reservados* pagados y *en compra* con bloqueo vigente), disponibles y porcentaje de ocupación (ocupados ÷ capacidad, 2 decimales; 0 % si no hay reservas).
+- **Definiciones:** *capacidad* = asientos `normal` de la sala (más cualquier asiento con reserva en esa función aunque el plano se haya reconfigurado después). *Ocupado* = detalle `reservado`, o `bloqueado` de una compra en curso que aún no vence (igual que el mapa que ven los clientes); un bloqueo vencido, cancelado o liberado deja el asiento libre. Capacidad = ocupados + disponibles siempre, porque todo se cuenta sobre las mismas filas del detalle; además la app verifica la coherencia antes de mostrar o exportar.
+- **Detalle de asientos:** mapa por fila y tabla con fila, número, estado (ocupado/libre) y su detalle.
+- **Excel:** `/admin/reportes/ocupacion/descargar?funcion=ID` vuelve a ejecutar la misma consulta de esa función y genera la hoja «Resumen» (función e indicadores) y la hoja «Asientos» (fila, número, asiento, estado, detalle). Verifica el rol Administrador en el servidor; Colaborador y Cliente reciben 401/403 sin datos.
+- **Solo lectura:** no crea ni modifica reservas, asientos ni funciones.
+
 ## Capa de venta `reserva` — para el Sprint 3 (aún no existe)
 
 Anotado aquí para retomarlo, **sin crear la tabla todavía** porque sus reglas aún no están definidas.
