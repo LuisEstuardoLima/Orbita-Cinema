@@ -11,7 +11,8 @@
 --
 -- Comprobaciones, en este orden (la primera que falla rechaza y NO cambia nada):
 --   1) la reserva existe                       -> no_encontrada
---   2) corresponde a la función seleccionada   -> otra_funcion
+--   2) corresponde a la función indicada       -> otra_funcion  (SOLO si se envía p_funcion;
+--      por defecto la función se toma de la propia reserva y esta comprobación no aplica)
 --   3) no está cancelada (ni su función)       -> cancelada
 --   4) no fue utilizada antes                  -> ya_utilizada
 --   5) está pagada (confirmada)                -> no_pagada
@@ -29,7 +30,7 @@
 alter table public.boleto add column if not exists validado_por uuid;
 
 create or replace function public.validar_entrada(
-  p_funcion    bigint,
+  p_funcion    bigint default null,
   p_codigo_qr  uuid default null,
   p_id_boleto  bigint default null,
   p_id_reserva bigint default null,
@@ -48,8 +49,7 @@ declare
   v_uso        timestamptz;
 begin
   -- Exactamente un dato de búsqueda.
-  if p_funcion is null
-     or (case when p_codigo_qr  is null then 0 else 1 end
+  if (case when p_codigo_qr  is null then 0 else 1 end
        + case when p_id_boleto  is null then 0 else 1 end
        + case when p_id_reserva is null then 0 else 1 end) <> 1 then
     raise exception 'datos_invalidos';
@@ -85,6 +85,8 @@ begin
     'total',         v_r.total,
     'estado',        v_r.estado,
     'id_funcion',    v_r.id_funcion,
+    'pelicula',      (select p.titulo from public.pelicula p where p.id = v_f.id_pelicula),
+    'sala',          (select s.nombre from public.sala s where s.id = v_f.id_sala),
     'fecha_funcion', v_f.fecha,
     'hora_funcion',  v_f.hora,
     'fecha_uso',     v_b.fecha_uso,
@@ -98,7 +100,7 @@ begin
   );
 
   -- 2..5) Comprobaciones. La primera que falla rechaza sin modificar nada.
-  if v_r.id_funcion <> p_funcion then
+  if p_funcion is not null and v_r.id_funcion <> p_funcion then
     v_motivo := 'otra_funcion';
   elsif v_r.estado in ('cancelada_cliente', 'cancelada_funcion') or coalesce(v_f.activa, false) = false then
     v_motivo := 'cancelada';

@@ -21,6 +21,8 @@ export type DatosEntrada = {
   total: number;
   estado: string;
   idFuncion: number;
+  pelicula: string | null;
+  sala: string | null;
   fechaFuncion: string | null;
   horaFuncion: string | null;
   fechaUso: string | null;
