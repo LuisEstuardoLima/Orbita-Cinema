@@ -21,7 +21,7 @@
  * | /admin/peliculas               |         |   consulta  |       ✔       |
  * | /admin/salas (y asientos)      |         |   consulta  |       ✔       |
  * | /admin/configuracion           |         |             |       ✔       |
- * | /admin/reportes (próximos)     |         |             |       ✔       |
+ * | /admin/reportes                |         |             |       ✔       |
  * | /admin/usuarios                |         |   consulta  |       ✔       |
  *
  * "consulta" = el Colaborador puede ENTRAR y ver la información,

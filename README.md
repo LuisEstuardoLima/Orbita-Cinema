@@ -182,6 +182,16 @@ Pantalla `/admin/entradas/validar` (módulo **Entradas** del panel; Colaborador 
 - **"Función cancelada":** se considera cancelada una función con `funcion.activa = false`.
 - **Pendiente de coordinar:** SCRUM-135 (listado de entradas) puede colgar de `/admin/entradas`; hoy el menú apunta a `/admin/entradas/validar`.
 
+## Reportes de ventas y reservas (SCRUM-142)
+
+Pantalla `/admin/reportes` (solo **Administrador**; Colaborador y Cliente no entran ni pueden pedir datos o la descarga directamente al servidor). **Antes de usarla hay que ejecutar una vez `supabase/sprint4-reportes.sql` en el SQL Editor de Supabase** (crea la función de solo lectura `reporte_ventas_reservas`; es idempotente) y correr `bun install` (nueva dependencia `exceljs`).
+
+- **Definiciones:** *reserva vigente* = confirmada, usada, o compra en curso cuyo bloqueo aún no vence (las canceladas y las expiradas no cuentan). *Venta* = reserva vigente confirmada/usada con pago aprobado; el **importe recaudado** es la suma de `pago.monto` aprobado (los pagos rechazados o pendientes no suman, y hay un solo aprobado por reserva).
+- **Consulta:** por función o por película (y opcionalmente una película), con filtro de fechas sobre la fecha de la función (pasadas, actuales y futuras) y la opción de ver ventas y reservas juntas o por separado. Columnas: película, función, fecha, sala, reservas, entradas y importes; con totales al final. Sin coincidencias muestra un mensaje y desactiva la descarga.
+- **Sin duplicar datos:** todo se calcula al consultar desde `reserva`, `detalle_reserva`, `pago`, `funcion`, `pelicula` y `sala`; el reporte solo hace SELECT.
+- **Excel:** `/admin/reportes/descargar` recibe los mismos filtros que la pantalla, verifica el rol Administrador en el servidor y arma el `.xlsx` con las mismas columnas, valores y totales que la tabla (`lib/reportes.ts`), con los filtros aplicados escritos arriba del archivo.
+- **Funciones canceladas:** las reservas de una función con `activa = false` no aparecen ni se cuentan (igual que en la validación de entradas), porque el panel no las pasa a `cancelada_funcion` al cancelar la función.
+
 ## Capa de venta `reserva` — para el Sprint 3 (aún no existe)
 
 Anotado aquí para retomarlo, **sin crear la tabla todavía** porque sus reglas aún no están definidas.

@@ -87,9 +87,9 @@ export const MODULOS_ADMIN: ModuloAdmin[] = [
     href: "/admin/reportes",
     nombre: "Reportes",
     descripcion:
-      "Ventas, reservas y ocupación por función o película.",
+      "Consultar y descargar en Excel las ventas y reservas por función o película.",
     icono: BarChart3,
-    disponible: false,
+    disponible: true,
   },
   {
     href: "/admin/usuarios",
