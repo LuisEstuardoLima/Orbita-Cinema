@@ -46,7 +46,7 @@ export const FILTROS_POR_DEFECTO: FiltrosReporte = {
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 
-function fechaReal(texto: string): boolean {
+export function fechaReal(texto: string): boolean {
   if (!FECHA.test(texto)) return false;
   const [y, m, d] = texto.split("-").map(Number) as [number, number, number];
   const f = new Date(Date.UTC(y, m - 1, d));
