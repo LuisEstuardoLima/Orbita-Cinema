@@ -22,8 +22,6 @@ import {
  * función SQL `validar_entrada`, en una sola transacción con la reserva bloqueada
  * (supabase/sprint4-validar-entrada.sql): dos solicitudes simultáneas no pueden validar la misma
  * reserva y un rechazo o un error no modifica nada.
- *
- * La función NO se elige: se toma de la propia reserva (QR, número de reserva o ID de entrada).
  */
 
 type DatosBd = {
@@ -33,8 +31,6 @@ type DatosBd = {
   total: number | string;
   estado: string;
   id_funcion: number;
-  pelicula: string | null;
-  sala: string | null;
   fecha_funcion: string | null;
   hora_funcion: string | null;
   fecha_uso: string | null;
@@ -55,8 +51,6 @@ function aDatos(d: Partial<DatosBd>): DatosEntrada | undefined {
     total: Number(d.total ?? 0),
     estado: d.estado ?? "",
     idFuncion: Number(d.id_funcion),
-    pelicula: d.pelicula ?? null,
-    sala: d.sala ?? null,
     fechaFuncion: d.fecha_funcion ?? null,
     horaFuncion: d.hora_funcion ? String(d.hora_funcion).slice(0, 5) : null,
     fechaUso: d.fecha_uso ?? null,
@@ -65,6 +59,7 @@ function aDatos(d: Partial<DatosBd>): DatosEntrada | undefined {
 }
 
 export async function validarEntrada(input: {
+  idFuncion: number;
   modo: ModoBusqueda;
   valor: string;
 }): Promise<ResultadoValidacion> {
@@ -73,6 +68,10 @@ export async function validarEntrada(input: {
   if (sinPermiso) return { ok: false, motivo: "permiso", mensaje: sinPermiso };
 
   // 2) Entrada: todo se vuelve a validar aquí, sin confiar en el navegador.
+  const idFuncion = Number(input?.idFuncion);
+  if (!Number.isSafeInteger(idFuncion) || idFuncion <= 0) {
+    return { ok: false, motivo: "datos", mensaje: "Selecciona la función para validar el ingreso." };
+  }
   const valor = typeof input?.valor === "string" ? input.valor : "";
 
   const params: { p_codigo_qr?: string; p_id_boleto?: number; p_id_reserva?: number } = {};
@@ -107,6 +106,7 @@ export async function validarEntrada(input: {
 
   // 4) Comprobación + cambio de estado, atómicos, en la base de datos.
   const { data, error } = await createAdminClient().rpc("validar_entrada", {
+    p_funcion: idFuncion,
     ...params,
     p_validador: user?.id ?? null,
   });
