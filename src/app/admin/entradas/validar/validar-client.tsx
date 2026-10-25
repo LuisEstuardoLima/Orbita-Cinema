@@ -49,6 +49,9 @@ export function ValidarEntradasClient({ hoy }: Props) {
     if (enCurso.current) return;
     enCurso.current = true;
     setProcesando(true);
+    // Una búsqueda nueva reemplaza todo lo anterior (nunca se muestran dos resultados a la vez).
+    setConsulta(null);
+    setResultado(null);
     try {
       const r = await validarEntrada({ modo: m, valor: v, confirmar: false });
       if (r.ok) setConsulta(r.datos);

@@ -16,6 +16,8 @@
 --   3) no está cancelada (ni su función)       -> cancelada
 --   4) no fue utilizada antes                  -> ya_utilizada
 --   5) está pagada (confirmada)                -> no_pagada
+--   6) la función no ha terminado              -> funcion_finalizada
+--      (fin = fecha + hora + duración de la película, 120 min si no tiene; hora de Guatemala)
 -- Si todo se cumple: reserva -> 'usada' y boleto.fecha_uso = now(), en la MISMA transacción.
 --
 -- Atómica: la reserva se lee con FOR UPDATE, así que dos validaciones simultáneas de la misma
@@ -58,6 +60,8 @@ declare
   v_motivo     text;
   v_info       jsonb;
   v_uso        timestamptz;
+  v_fin        timestamp;
+  v_dur        integer;
 begin
   -- Exactamente un dato de búsqueda.
   if (case when p_codigo_qr  is null then 0 else 1 end
@@ -119,6 +123,14 @@ begin
     v_motivo := 'ya_utilizada';
   elsif v_r.estado <> 'confirmada' or v_b.id_boleto is null then
     v_motivo := 'no_pagada'; -- pendiente_pago o expirada: nunca se pagó
+  else
+    -- 6) Función ya terminada: no se valida (ni se muestra el botón). Se evalúa al final para que
+    --    una entrada cancelada, usada o sin pagar siga mostrando su motivo propio.
+    select coalesce(p.duracion_min, 120) into v_dur from public.pelicula p where p.id = v_f.id_pelicula;
+    v_fin := (v_f.fecha + v_f.hora) + make_interval(mins => coalesce(v_dur, 120));
+    if v_fin < (now() at time zone 'America/Guatemala') then
+      v_motivo := 'funcion_finalizada';
+    end if;
   end if;
 
   if v_motivo is not null then

@@ -10,7 +10,8 @@ export type MotivoRechazo =
   | "otra_funcion"
   | "cancelada"
   | "ya_utilizada"
-  | "no_pagada";
+  | "no_pagada"
+  | "funcion_finalizada";
 
 /** Datos de la compra que se muestran al validar (también cuando se rechaza). */
 export type DatosEntrada = {
@@ -39,6 +40,7 @@ export const MENSAJES_RECHAZO: Record<MotivoRechazo, string> = {
   cancelada: "La reserva está cancelada o su función fue cancelada: no es válida para acceder a la función.",
   ya_utilizada: "La reserva ya fue validada anteriormente.",
   no_pagada: "La reserva no está pagada, por lo que no es válida para ingresar.",
+  funcion_finalizada: "La función ya terminó: la entrada no se puede validar.",
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
