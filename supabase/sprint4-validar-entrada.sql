@@ -22,6 +22,11 @@
 -- reserva se serializan; la segunda ve 'usada' y recibe 'ya_utilizada'. Cualquier error
 -- inesperado revierte todo (la reserva no queda como utilizada).
 --
+-- Dos pasos (p_confirmar):
+--   · p_confirmar = false  -> CONSULTA: hace las mismas comprobaciones y devuelve los datos de la
+--     reserva, pero NO modifica nada (la pantalla muestra los datos y un botón para validar).
+--   · p_confirmar = true   -> VALIDA: igual que antes, marca la reserva como utilizada.
+--
 -- Solo la llama el backend con service_role (nunca el navegador); el rol del usuario
 -- (Colaborador/Administrador) se verifica en la Server Action antes de llegar aquí.
 -- =====================================================================
@@ -32,13 +37,15 @@ alter table public.boleto add column if not exists validado_por uuid;
 -- Se recrea siempre: Postgres no permite quitar/cambiar los valores por defecto de los parámetros
 -- con create or replace (error 42P13), y la firma cambió al hacer opcional p_funcion.
 drop function if exists public.validar_entrada(bigint, uuid, bigint, bigint, uuid);
+drop function if exists public.validar_entrada(bigint, uuid, bigint, bigint, uuid, boolean);
 
 create or replace function public.validar_entrada(
   p_funcion    bigint default null,
   p_codigo_qr  uuid default null,
   p_id_boleto  bigint default null,
   p_id_reserva bigint default null,
-  p_validador  uuid default null
+  p_validador  uuid default null,
+  p_confirmar  boolean default true
 )
 returns jsonb
 language plpgsql
@@ -118,6 +125,11 @@ begin
     return jsonb_build_object('ok', false, 'motivo', v_motivo) || v_info;
   end if;
 
+  -- Consulta: todo está en orden, pero no se marca nada (lo hará el botón de validar).
+  if not coalesce(p_confirmar, true) then
+    return jsonb_build_object('ok', true, 'motivo', null) || v_info;
+  end if;
+
   -- Éxito: toda la reserva queda utilizada, de una sola vez.
   update public.reserva set estado = 'usada', updated_at = now() where id_reserva = v_r.id_reserva;
   update public.boleto set fecha_uso = now(), validado_por = p_validador where id_boleto = v_b.id_boleto
@@ -128,5 +140,5 @@ begin
 end;
 $$;
 
-revoke all on function public.validar_entrada(bigint, uuid, bigint, bigint, uuid) from public, anon, authenticated;
-grant execute on function public.validar_entrada(bigint, uuid, bigint, bigint, uuid) to service_role;
+revoke all on function public.validar_entrada(bigint, uuid, bigint, bigint, uuid, boolean) from public, anon, authenticated;
+grant execute on function public.validar_entrada(bigint, uuid, bigint, bigint, uuid, boolean) to service_role;

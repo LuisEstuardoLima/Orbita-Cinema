@@ -23,6 +23,9 @@ import {
  * (supabase/sprint4-validar-entrada.sql): dos solicitudes simultáneas no pueden validar la misma
  * reserva y un rechazo o un error no modifica nada.
  *
+ * Dos pasos: primero se consulta (`confirmar: false`, no modifica nada) y solo al pulsar el botón
+ * se valida (`confirmar: true`).
+ *
  * La función NO se elige: se toma de la propia reserva (QR, número de reserva o ID de entrada).
  */
 
@@ -67,6 +70,8 @@ function aDatos(d: Partial<DatosBd>): DatosEntrada | undefined {
 export async function validarEntrada(input: {
   modo: ModoBusqueda;
   valor: string;
+  /** false = solo consultar y mostrar los datos; true = marcar la reserva como utilizada. */
+  confirmar: boolean;
 }): Promise<ResultadoValidacion> {
   // 1) Permisos: solo Colaborador y Administrador (Cliente y sin sesión quedan fuera).
   const sinPermiso = await assertRol(ROLES_PANEL);
@@ -79,7 +84,8 @@ export async function validarEntrada(input: {
   if (input?.modo === "qr") {
     const codigo = normalizarCodigoQr(valor);
     // Un QR que no tiene el formato del boleto no puede identificar ninguna reserva.
-    if (!codigo) return { ok: false, motivo: "no_encontrada", mensaje: MENSAJES_RECHAZO.no_encontrada };
+    if (!codigo)
+      return { ok: false, motivo: "no_encontrada", mensaje: MENSAJES_RECHAZO.no_encontrada };
     params.p_codigo_qr = codigo;
   } else if (input?.modo === "entrada" || input?.modo === "reserva") {
     const n = normalizarNumero(valor);
@@ -109,12 +115,14 @@ export async function validarEntrada(input: {
   const { data, error } = await createAdminClient().rpc("validar_entrada", {
     ...params,
     p_validador: user?.id ?? null,
+    p_confirmar: input?.confirmar === true,
   });
   if (error || !data) {
     return {
       ok: false,
       motivo: "error",
-      mensaje: "No se pudo completar la validación. Intenta de nuevo; la reserva no fue modificada.",
+      mensaje:
+        "No se pudo completar la validación. Intenta de nuevo; la reserva no fue modificada.",
     };
   }
 
