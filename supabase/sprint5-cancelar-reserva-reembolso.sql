@@ -198,7 +198,7 @@ begin
         'reversion_compra',
         -v_puntos_compra,
         'Reversion puntos por compra cancelada ORB-' ||
-        lpad(v_r.id_reserva::text, 6, '0')
+        lpad(p_id_reserva::text, 6, '0')
       );
   end if;
 
@@ -240,3 +240,15 @@ revoke all on function public.cancelar_reserva_reembolso(bigint, uuid)
 
 grant execute on function public.cancelar_reserva_reembolso(bigint, uuid)
   to service_role;
+
+-- ---------------------------------------------------------------------
+-- Reparación de descripciones históricas de reversiones.
+-- La columna id_reserva es la fuente de verdad para el código ORB-XXXXXX.
+-- Solo actualiza el texto de movimientos reversion_compra; no altera puntos,
+-- reservas ni los movimientos de compra/reembolso.
+-- ---------------------------------------------------------------------
+update public.punto_lealtad
+   set descripcion = 'Reversion puntos por compra cancelada ORB-' ||
+                     lpad(id_reserva::text, 6, '0')
+ where tipo_movimiento = 'reversion_compra'
+   and id_reserva is not null;

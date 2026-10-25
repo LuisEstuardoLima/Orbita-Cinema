@@ -26,6 +26,8 @@ export type ResultadoPago =
       idReserva: number;
       qrDataUrl: string;
       correoEnviado: boolean;
+      /** Puntos registrados en la BD para compras de usuarios registrados; null para invitados o si no se pudo consultar. */
+      puntosGanados: number | null;
     }
   | { ok: false; error: string; vencido?: boolean };
 
@@ -141,6 +143,24 @@ export async function procesarPago(input: {
     width: 240,
   }).catch(() => "");
 
+  // Best-effort: consultar los puntos que realmente quedaron registrados por
+  // confirmar_compra. Los invitados (sin perfil) no acumulan puntos.
+  // Si la consulta falla, no se muestra una cantidad potencialmente incorrecta;
+  // la compra ya está confirmada y no debe tratarse como fallida por esto.
+  let puntosGanados: number | null = null;
+  if (perfil) {
+    const { data: movimientoPuntos } = await admin
+      .from("punto_lealtad")
+      .select("puntos")
+      .eq("id_reserva", fila.out_id_reserva)
+      .eq("tipo_movimiento", "compra")
+      .maybeSingle();
+
+    if (movimientoPuntos && Number.isFinite(Number(movimientoPuntos.puntos))) {
+      puntosGanados = Number(movimientoPuntos.puntos);
+    }
+  }
+
   // Best-effort: la compra ya quedó confirmada; si el correo falla, no se
   // revierte nada y la confirmación avisa para que guarde su número ORB-.
   const correoEnviado = await enviarBoletoPorCorreo(fila.out_id_reserva);
@@ -150,5 +170,6 @@ export async function procesarPago(input: {
     idReserva: fila.out_id_reserva,
     qrDataUrl,
     correoEnviado,
+    puntosGanados,
   };
 }

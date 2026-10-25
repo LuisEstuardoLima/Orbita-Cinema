@@ -78,6 +78,7 @@ export function PagoClient(search: Props) {
   const [idReserva, setIdReserva] = useState<number | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [correoEnviado, setCorreoEnviado] = useState<boolean | null>(null);
+  const [puntosGanados, setPuntosGanados] = useState<number | null>(null);
 
   // Para que "Iniciar sesión" vuelva a ESTA compra con todos sus parámetros.
   const pathname = usePathname();
@@ -172,6 +173,7 @@ export function PagoClient(search: Props) {
       setIdReserva(res.idReserva);
       setQrDataUrl(res.qrDataUrl);
       setCorreoEnviado(res.correoEnviado);
+      setPuntosGanados(res.puntosGanados);
       setAprobado(true);
       setDone(true); // CA3: pago aprobado -> pantalla de confirmación.
     } finally {
@@ -760,6 +762,12 @@ export function PagoClient(search: Props) {
               Q.{(search.total || 94.5).toFixed(2)}
             </span>
           </p>
+          {search.cuenta && puntosGanados !== null && (
+            <p className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm">
+              Puntos de lealtad acumulados:{" "}
+              <span className="font-bold text-primary">+{puntosGanados} puntos</span>
+            </p>
+          )}
           {qrDataUrl && (
             <div className="my-2 flex flex-col items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -1,9 +1,13 @@
+
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["192.168.1.12"],
+
   reactStrictMode: true,
+
   experimental: {
-    // Subida del póster desde el panel admin (Vercel limita el cuerpo de una función a ~4.5 MB)
+    // Sube el límite del póster desde el panel admin.
     serverActions: { bodySizeLimit: "4mb" },
   },
 };
