@@ -6,6 +6,7 @@ import { etiquetaAsiento } from "@/lib/bloqueo";
 import { getBloqueoVigente } from "@/lib/db/bloqueo";
 import { calcularResumenCompra } from "@/lib/db/compra";
 import { getPerfilActual } from "@/lib/auth/perfil";
+import { createClient } from "@/lib/supabase/server";
 import { PagoClient } from "./pago-client";
 
 export const dynamic = "force-dynamic"; // depende del bloqueo y de la hora
@@ -48,6 +49,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
     ? { nombre: perfil.nombre, apellido: perfil.apellido, email: perfil.email, telefono: perfil.telefono }
     : null;
 
+  // El saldo mostrado se obtiene del libro de movimientos, nunca de un valor del navegador.
+  let saldoPuntos = 0;
+  if (perfil) {
+    const supabase = await createClient();
+    const { data: auth } = await supabase.auth.getUser();
+    if (auth.user) {
+      const { data: movimientos } = await supabase
+        .from("punto_lealtad")
+        .select("puntos")
+        .eq("id_usuario", auth.user.id);
+      saldoPuntos = (movimientos ?? []).reduce((s, m) => s + Number(m.puntos || 0), 0);
+    }
+  }
+
   return (
     <PagoClient
       slug={funcion?.slug ?? str(sp["slug"], "batman")}
@@ -61,6 +76,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<SP>
       cantidades={cantidades}
       segundosRestantes={bloqueo.segundosRestantes}
       cuenta={cuenta}
+      saldoPuntos={saldoPuntos}
     />
   );
 }

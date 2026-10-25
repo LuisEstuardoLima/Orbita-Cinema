@@ -39,6 +39,9 @@ export async function obtenerMisReservas(): Promise<{
     `
     )
     .eq("id_usuario", user.id)
+    // El historial muestra compras confirmadas/usadas y cancelaciones hechas por el cliente.
+    // Se excluyen bloqueos pendientes, expirados y cancelaciones de función por parte del cine.
+    .in("estado", ["confirmada", "usada", "utilizada", "completada", "cancelada_cliente", "cancelada"])
     .order("fecha_reserva", { ascending: false });
 
   if (error) return { reservas: [], error: error.message };

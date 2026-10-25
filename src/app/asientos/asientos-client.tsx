@@ -78,6 +78,15 @@ export function AsientosClient(search: Props) {
 
   const filasOrdenadas = Array.from(asientosPorFila.keys()).sort();
 
+  // El administrador numera correlativamente solo las butacas normales de cada fila.
+  // Repetimos esa regla en el mapa del cliente sin alterar el número físico de columna.
+  const etiquetaVisible = (fila: string, numeroColumna: number) => {
+    const normales = (asientosPorFila.get(fila) ?? [])
+      .filter((a) => a.estado === "normal" && a.numero <= numeroColumna)
+      .sort((a, b) => a.numero - b.numero);
+    return `${fila}${normales.length}`;
+  };
+
   // SCRUM-120: la ocupación arranca con lo que trajo el servidor y se mantiene al día sola.
   const [ocupadosIds, setOcupadosIds] = useState<number[]>(asientosOcupados);
   const setOcupados = new Set(ocupadosIds);
@@ -286,7 +295,14 @@ export function AsientosClient(search: Props) {
         hall,
         time,
         format,
-        seats: selected.join(","),
+        seats: ordenarAsientos(selected)
+          .map((key) => {
+            const match = /^([A-Za-z]+)(\d+)$/.exec(key);
+            return match
+              ? etiquetaVisible(match[1]!, Number(match[2]))
+              : key;
+          })
+          .join(","),
         total: resumen?.total ?? 0,
         funcion: idFuncion,
         adulto,
@@ -406,7 +422,7 @@ export function AsientosClient(search: Props) {
                               key={clave}
                               type="button"
                               disabled
-                              aria-label={`${asiento.fila}${asiento.numero} — ${asiento.estado}`}
+                              aria-label={`${etiquetaVisible(asiento.fila, asiento.numero)} — ${asiento.estado}`}
                               className={`flex ${SEAT_SIZE} select-none items-center justify-center ${SEAT_RADIUS} border text-[11px] font-medium transition-all cursor-not-allowed opacity-70 ${
                                 asiento.estado === "pasillo"
                                   ? "border-dashed border-border bg-transparent text-muted-foreground/50"
@@ -435,8 +451,8 @@ export function AsientosClient(search: Props) {
                             }
                             aria-label={
                               isReserved
-                                ? `${asiento.fila}${asiento.numero} — Ocupado`
-                                : `${asiento.fila}${asiento.numero} — ${
+                                ? `${etiquetaVisible(asiento.fila, asiento.numero)} — Ocupado`
+                                : `${etiquetaVisible(asiento.fila, asiento.numero)} — ${
                                     isSelected
                                       ? "Seleccionado"
                                       : "Disponible"
@@ -450,7 +466,7 @@ export function AsientosClient(search: Props) {
                                   : "border-primary/50 bg-primary/10 text-primary hover:border-primary hover:bg-primary/20 cursor-pointer"
                             }`}
                           >
-                            {asiento.numero}
+                            {etiquetaVisible(asiento.fila, asiento.numero).replace(asiento.fila, "")}
                           </button>
                         );
                       })}
@@ -489,7 +505,14 @@ export function AsientosClient(search: Props) {
               Selección:{" "}
               <span className="font-semibold text-primary">
                 {selected.length
-                  ? ordenarAsientos(selected).join(", ")
+                  ? ordenarAsientos(selected)
+                      .map((key) => {
+                        const match = /^([A-Za-z]+)(\d+)$/.exec(key);
+                        return match
+                          ? etiquetaVisible(match[1]!, Number(match[2]))
+                          : key;
+                      })
+                      .join(", ")
                   : "—"}
               </span>
             </p>

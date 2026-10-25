@@ -34,6 +34,7 @@ type Props = {
    * como invitado (CA1). Los entrega /pago/page.tsx con getPerfilActual().
    */
   cuenta: { nombre: string; apellido: string; email: string; telefono: string } | null;
+  saldoPuntos: number;
 };
 
 export function PagoClient(search: Props) {
@@ -79,6 +80,14 @@ export function PagoClient(search: Props) {
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
   const [correoEnviado, setCorreoEnviado] = useState<boolean | null>(null);
   const [puntosGanados, setPuntosGanados] = useState<number | null>(null);
+  const [usarPuntos, setUsarPuntos] = useState(false);
+  const maxPuntosCanjeables = Math.min(Math.max(0, Math.floor(search.saldoPuntos)), Math.ceil(search.total));
+  const [cantidadPuntos, setCantidadPuntos] = useState(1);
+  const puntosCanjeados = usarPuntos
+    ? Math.min(maxPuntosCanjeables, Math.max(1, Math.floor(cantidadPuntos)))
+    : 0;
+  const descuentoPuntos = Math.min(search.total, puntosCanjeados);
+  const totalPagar = Math.max(0, Number((search.total - descuentoPuntos).toFixed(2)));
 
   // Para que "Iniciar sesión" vuelva a ESTA compra con todos sus parámetros.
   const pathname = usePathname();
@@ -137,8 +146,8 @@ export function PagoClient(search: Props) {
       return;
     }
 
-    const r = datosTarjetaSchema.safeParse(tarjeta);
-    if (!r.success) {
+    const r = totalPagar > 0 ? datosTarjetaSchema.safeParse(tarjeta) : null;
+    if (r && !r.success) {
       const errs: Partial<Record<keyof DatosTarjeta, string>> = {};
       for (const issue of r.error.issues) {
         const campo = issue.path[0] as keyof DatosTarjeta;
@@ -156,10 +165,12 @@ export function PagoClient(search: Props) {
       const res = await procesarPago({
         idFuncion: search.idFuncion,
         metodo,
-        // El CVV queda en el navegador: nunca viaja al servidor (CA6).
-        tarjeta: { nombre: r.data.nombre, numero: r.data.numero, vencimiento: r.data.vencimiento },
-        // Con cuenta, el servidor ignora esto y usa los datos de la cuenta (CA5).
+        // Si los puntos cubren todo, el servidor no requiere datos de tarjeta.
+        tarjeta: r?.success
+          ? { nombre: r.data.nombre, numero: r.data.numero, vencimiento: r.data.vencimiento }
+          : { nombre: "", numero: "", vencimiento: "" },
         invitado: search.cuenta ? null : datos,
+        puntosCanjeados,
       });
       if (!res.ok) {
         if (res.vencido) {
@@ -221,7 +232,7 @@ export function PagoClient(search: Props) {
       ["Sala", search.hall || "Sala 1 Regular 2D"],
       ["Horario", `${search.time || "18:00"} Hrs.`],
       ["Asientos", asientosTexto],
-      ["Total pagado", quetzales(search.total || 94.5)],
+      ["Total pagado", quetzales(totalPagar)],
     ];
 
     let y = 210;
@@ -293,7 +304,7 @@ export function PagoClient(search: Props) {
             <tr><td>Sala</td><td>${search.hall || "Sala 1 Regular 2D"}</td></tr>
             <tr><td>Horario</td><td>${search.time || "18:00"} Hrs.</td></tr>
             <tr><td>Asientos</td><td>${asientosTexto}</td></tr>
-            <tr><td>Total pagado</td><td>${quetzales(search.total || 94.5)}</td></tr>
+            <tr><td>Total pagado</td><td>${quetzales(totalPagar)}</td></tr>
           </table>
           ${qrDataUrl ? `<div class="qr"><img src="${qrDataUrl}" alt="Código QR" /></div>` : ""}
           <p class="note">Presenta este código QR en la entrada de la sala.</p>
@@ -464,6 +475,72 @@ export function PagoClient(search: Props) {
 
             <div className="space-y-4">
               <h2 className="section-title">Pago</h2>
+              {search.cuenta && search.saldoPuntos > 0 && maxPuntosCanjeables > 0 && (
+                <div className="rounded-lg border border-border p-4 space-y-3">
+                  <label className="flex items-start gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={usarPuntos}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setUsarPuntos(checked);
+                        if (checked && cantidadPuntos < 1) setCantidadPuntos(1);
+                      }}
+                      disabled={ocupado || aprobado}
+                      className="mt-0.5 h-4 w-4 accent-[var(--primary)]"
+                    />
+                    <span>
+                      <strong>Usar mis puntos de lealtad</strong><br />
+                      Tienes {search.saldoPuntos} puntos disponibles (Q1 por punto).
+                    </span>
+                  </label>
+                  {usarPuntos && (
+                    <div className="space-y-2 pl-7">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <label htmlFor="cantidad-puntos" className="font-medium">¿Cuántos puntos quieres usar?</label>
+                        <span className="text-muted-foreground">Máximo: {maxPuntosCanjeables}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input
+                          id="rango-puntos"
+                          aria-label="Cantidad de puntos a canjear"
+                          type="range"
+                          min={1}
+                          max={maxPuntosCanjeables}
+                          step={1}
+                          value={puntosCanjeados}
+                          onChange={(e) => setCantidadPuntos(Number(e.target.value))}
+                          disabled={ocupado || aprobado || maxPuntosCanjeables <= 1}
+                          className="w-full accent-[var(--primary)]"
+                        />
+                        <input
+                          id="cantidad-puntos"
+                          type="number"
+                          min={1}
+                          max={maxPuntosCanjeables}
+                          step={1}
+                          value={puntosCanjeados}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            if (raw === "") {
+                              setCantidadPuntos(1);
+                              return;
+                            }
+                            const n = Number(raw);
+                            if (Number.isFinite(n)) setCantidadPuntos(Math.min(maxPuntosCanjeables, Math.max(1, Math.floor(n))));
+                          }}
+                          disabled={ocupado || aprobado || maxPuntosCanjeables <= 1}
+                          className="field w-24"
+                        />
+                      </div>
+                      <p className="text-sm text-primary">
+                        Canjearás {puntosCanjeados} {puntosCanjeados === 1 ? "punto" : "puntos"} por {quetzales(descuentoPuntos)}.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {totalPagar > 0 ? <>
               <div>
                 <label className="label" htmlFor="pag-nombre">
                   Nombre en la tarjeta
@@ -578,10 +655,13 @@ export function PagoClient(search: Props) {
                   ))}
                 </select>
               </div>
+              </> : (
+                <p className="rounded-lg bg-primary/10 p-4 text-sm">Tus puntos cubren el total de la compra. No necesitas introducir una tarjeta.</p>
+              )}
 
               <div className="flex items-center justify-between border-t border-border pt-4">
-                <span className="text-sm text-muted-foreground">Total a pagar</span>
-                <span className="text-lg font-bold text-primary">{quetzales(search.total)}</span>
+                <span className="text-sm text-muted-foreground">{puntosCanjeados > 0 ? "Total después de puntos" : "Total a pagar"}</span>
+                <span className="text-lg font-bold text-primary">{quetzales(totalPagar)}</span>
               </div>
 
               {errorPago && (
@@ -612,7 +692,7 @@ export function PagoClient(search: Props) {
               onClick={pagar}
               disabled={ocupado || aprobado}
             >
-              {ocupado ? "Procesando..." : aprobado ? "Pago aprobado" : "Pagar"}
+              {ocupado ? "Procesando..." : aprobado ? "Compra confirmada" : totalPagar === 0 ? "Confirmar compra" : "Pagar"}
             </button>
           </div>
         </section>
@@ -759,7 +839,7 @@ export function PagoClient(search: Props) {
           <p className="text-sm text-muted-foreground">
             Total pagado:{" "}
             <span className="font-bold text-primary">
-              Q.{(search.total || 94.5).toFixed(2)}
+              Q.{totalPagar.toFixed(2)}
             </span>
           </p>
           {search.cuenta && puntosGanados !== null && (
