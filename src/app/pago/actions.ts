@@ -12,6 +12,8 @@ import { getBloqueoVigente, getTokenBloqueo, liberarBloqueoActual } from "@/lib/
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPerfilActual } from "@/lib/auth/perfil";
 import { enviarBoletoPorCorreo } from "@/lib/correo";
+import { obtenerDatosBoleto } from "@/lib/boleto";
+import { crearPdf } from "@/lib/pdf";
 
 /**
  * Resultado del pago. `ultimos4` es lo ÚNICO de la tarjeta que se conserva
@@ -25,6 +27,10 @@ export type ResultadoPago =
       ultimos4: string | null;
       idReserva: number;
       qrDataUrl: string;
+      /** El mismo PDF que se adjunta al correo, codificado para la descarga del cliente. */
+      pdfBase64: string | null;
+      /** Error explícito si la compra se confirmó pero no fue posible preparar su PDF. */
+      boletoError: string | null;
       correoEnviado: boolean;
       /** Puntos registrados en la BD para compras de usuarios registrados; null para invitados o si no se pudo consultar. */
       puntosGanados: number | null;
@@ -179,14 +185,29 @@ export async function procesarPago(input: {
     }
   }
 
-  // Best-effort: la compra ya quedó confirmada; si el correo falla, no se
-  // revierte nada y la confirmación avisa para que guarde su número ORB-.
-  const correoEnviado = await enviarBoletoPorCorreo(fila.out_id_reserva);
+  // La compra ya quedó confirmada. Se construye un único PDF con los datos
+  // persistidos; esos mismos bytes se entregan al navegador y al correo.
+  let pdfBase64: string | null = null;
+  let boletoError: string | null = null;
+  let correoEnviado = false;
+  try {
+    const { datos, correoComprador } = await obtenerDatosBoleto(fila.out_id_reserva);
+    const pdfBytes = await crearPdf(datos);
+    pdfBase64 = Buffer.from(pdfBytes).toString("base64");
+    correoEnviado = await enviarBoletoPorCorreo(correoComprador, datos, pdfBytes);
+  } catch (error) {
+    console.error("[boleto] La compra quedó confirmada, pero no se pudo generar el PDF:", error);
+    boletoError =
+      "Tu compra quedó confirmada, pero no pudimos preparar el boleto PDF. Conserva tu número de reserva y contacta a soporte.";
+  }
+
   return {
     ok: true,
     ultimos4: ultimos4 ?? "",
     idReserva: fila.out_id_reserva,
     qrDataUrl,
+    pdfBase64,
+    boletoError,
     correoEnviado,
     puntosGanados,
   };
