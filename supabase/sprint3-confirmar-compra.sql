@@ -13,7 +13,10 @@
 --      conserva cuándo se tomó el asiento);
 --   3) pasa los asientos de 'bloqueado' a 'reservado';
 --   4) inserta el pago (solo los últimos 4 dígitos; nunca número completo
---      ni CVV — CA6) y el boleto (un QR por reserva).
+--      ni CVV — CA6) y el boleto (un QR por reserva);
+--   5) registra puntos de lealtad (SCRUM-130): 1 punto por cada Q10 del
+--      total pagado, redondeo hacia arriba. Solo para clientes registrados
+--      (id_usuario IS NOT NULL). Los invitados no generan puntos.
 -- Si algo falla, PostgreSQL revierte TODO: no queda ninguna reserva a medias.
 -- Un doble clic es idempotente: si la reserva ya está 'confirmada', devuelve
 -- el mismo resultado sin registrar nada otra vez (se conserva token_sesion
@@ -39,6 +42,7 @@ declare
   v_r public.reserva%rowtype;
   v_activa boolean;
   v_n integer;
+  v_puntos integer;
 begin
   -- 0) Datos mínimos: nada de campos vacíos ni formatos inválidos.
   if p_token is null
@@ -128,6 +132,19 @@ begin
 
   -- 7) Boleto: uno por reserva (el índice único lo garantiza).
   insert into public.boleto (id_reserva) values (v_r.id_reserva);
+
+  -- 8) Puntos de lealtad (SCRUM-130): solo clientes registrados.
+  --    1 punto por cada Q10 del total pagado, redondeo hacia arriba.
+  --    Los invitados (id_usuario IS NULL) no generan puntos.
+  if v_r.id_usuario is not null then
+    v_puntos := ceil(v_r.total / 10)::integer;
+    insert into public.punto_lealtad
+      (id_usuario, id_reserva, tipo_movimiento, puntos, descripcion)
+    values
+      (v_r.id_usuario, v_r.id_reserva, 'compra', v_puntos,
+       'Puntos por compra ORB-' || lpad(v_r.id_reserva::text, 6, '0'))
+    on conflict (id_reserva, tipo_movimiento) do nothing;
+  end if;
 
   return query
     select b.id_reserva, b.codigo_qr
