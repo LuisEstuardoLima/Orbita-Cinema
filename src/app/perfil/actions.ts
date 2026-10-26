@@ -1,7 +1,73 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+export type PerfilActionState = {
+  ok: boolean;
+  mensaje: string;
+};
+
+const perfilSchema = z.object({
+  nombre: z.string().trim().min(1, "El nombre es obligatorio.").max(100, "El nombre no puede superar 100 caracteres."),
+  apellido: z.string().trim().min(1, "El apellido es obligatorio.").max(100, "El apellido no puede superar 100 caracteres."),
+  telefono: z
+    .string()
+    .trim()
+    .min(8, "Escribe un teléfono válido (mínimo 8 dígitos).")
+    .max(30, "El teléfono no puede superar 30 caracteres.")
+    .regex(/^[0-9\s\-+()]+$/, "El teléfono solo puede contener dígitos, espacios, guiones y paréntesis."),
+});
+
+export async function actualizarPerfil(
+  _estado: PerfilActionState,
+  formData: FormData,
+): Promise<PerfilActionState> {
+  const parsed = perfilSchema.safeParse({
+    nombre: formData.get("nombre"),
+    apellido: formData.get("apellido"),
+    telefono: formData.get("telefono"),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      mensaje: parsed.error.issues[0]?.message ?? "Revisa los datos ingresados.",
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: errorSesion,
+  } = await supabase.auth.getUser();
+  if (errorSesion || !user) {
+    return { ok: false, mensaje: "Debes iniciar sesión para actualizar tu perfil." };
+  }
+
+  const { data, error } = await supabase
+    .from("usuarios")
+    .update({
+      nombre: parsed.data.nombre,
+      apellido: parsed.data.apellido,
+      telefono: parsed.data.telefono,
+    })
+    .eq("id_usuario", user.id)
+    .select("id_usuario")
+    .maybeSingle();
+
+  if (error) {
+    console.error("[perfil] No se pudieron actualizar los datos personales:", error);
+    return { ok: false, mensaje: "No se pudieron guardar tus datos. Inténtalo de nuevo." };
+  }
+  if (!data) {
+    return { ok: false, mensaje: "No se encontró tu perfil para actualizar." };
+  }
+
+  revalidatePath("/perfil");
+  return { ok: true, mensaje: "Tus datos personales se actualizaron correctamente." };
+}
 
 export type ReservaHistorial = {
   id_reserva: number;
@@ -13,6 +79,7 @@ export type ReservaHistorial = {
   hora_funcion: string;
   pelicula: string;
   sala: string;
+  asientos: string[];
   puntos_ganados: number;
 };
 
@@ -35,31 +102,76 @@ export async function obtenerMisReservas(): Promise<{
       total,
       id_funcion,
       funcion:funcion!inner(fecha, hora, pelicula:pelicula!inner(titulo), sala:sala!inner(nombre)),
+      detalle_reserva(asiento:asiento(fila, numero)),
+      pago(monto, estado),
       punto_lealtad:punto_lealtad(tipo_movimiento, puntos)
     `
     )
     .eq("id_usuario", user.id)
-    // El historial muestra compras confirmadas/usadas y cancelaciones hechas por el cliente.
-    // Se excluyen bloqueos pendientes, expirados y cancelaciones de función por parte del cine.
-    .in("estado", ["confirmada", "usada", "utilizada", "completada", "cancelada_cliente", "cancelada"])
+    .in("estado", [
+      "confirmada",
+      "usada",
+      "utilizada",
+      "completada",
+      "cancelada_cliente",
+      "cancelada",
+      "cancelada_funcion",
+    ])
     .order("fecha_reserva", { ascending: false });
 
-  if (error) return { reservas: [], error: error.message };
+  if (error) {
+    console.error("[perfil] No se pudieron consultar las reservas:", error);
+    return {
+      reservas: [],
+      error: "No fue posible cargar tus reservas. Inténtalo de nuevo.",
+    };
+  }
 
-  const reservas = (data ?? []).map((r: any) => {
+  type FuncionRelacion = {
+    fecha: string;
+    hora: string;
+    pelicula: { titulo: string } | null;
+    sala: { nombre: string } | null;
+  };
+  type DetalleRelacion = {
+    asiento: { fila: string; numero: number } | null;
+  };
+  type MovimientoCompraRelacion = {
+    tipo_movimiento: string;
+    puntos: number;
+  };
+  type PagoRelacion = {
+    monto: number;
+    estado: string;
+  };
+
+  const reservas = (data ?? []).map((r) => {
+    const funcion = r.funcion as unknown as FuncionRelacion | null;
+    const detalles = r.detalle_reserva as unknown as DetalleRelacion[] | null;
+    const pagos = r.pago as unknown as PagoRelacion[] | null;
+    const movimientos = r.punto_lealtad as unknown as MovimientoCompraRelacion[] | null;
     const puntosCompra =
-      r.punto_lealtad?.filter((p: any) => p.tipo_movimiento === "compra")?.[0]
-        ?.puntos ?? 0;
+      movimientos?.find((p) => p.tipo_movimiento === "compra")?.puntos ?? 0;
+    const pagoAprobado = pagos?.find((p) => p.estado === "aprobado");
+    const asientos = (detalles ?? [])
+      .flatMap((detalle) =>
+        detalle.asiento
+          ? [`${detalle.asiento.fila}${detalle.asiento.numero}`]
+          : [],
+      )
+      .sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
+
     return {
       id_reserva: r.id_reserva,
       fecha_reserva: r.fecha_reserva,
       estado: r.estado,
-      total: Number(r.total),
+      total: Number(pagoAprobado?.monto ?? r.total),
       id_funcion: r.id_funcion,
-      fecha_funcion: r.funcion?.fecha ?? "",
-      hora_funcion: r.funcion?.hora ?? "",
-      pelicula: r.funcion?.pelicula?.titulo ?? "",
-      sala: r.funcion?.sala?.nombre ?? "",
+      fecha_funcion: funcion?.fecha ?? "",
+      hora_funcion: funcion?.hora ?? "",
+      pelicula: funcion?.pelicula?.titulo ?? "",
+      sala: funcion?.sala?.nombre ?? "",
+      asientos,
       puntos_ganados: puntosCompra,
     };
   });
@@ -94,9 +206,16 @@ export async function obtenerMovimientosPuntos(): Promise<SaldoMovimientos> {
     .eq("id_usuario", user.id)
     .order("fecha_movimiento", { ascending: false });
 
-  if (error) return { movimientos: [], saldo: 0, error: error.message };
+  if (error) {
+    console.error("[perfil] No se pudieron consultar los movimientos de puntos:", error);
+    return {
+      movimientos: [],
+      saldo: 0,
+      error: "No fue posible cargar tus movimientos de puntos.",
+    };
+  }
 
-  const movimientos = (data ?? []).map((m: any) => ({
+  const movimientos = (data ?? []).map((m) => ({
     id_movimiento: m.id_movimiento,
     fecha_movimiento: m.fecha_movimiento,
     tipo_movimiento: m.tipo_movimiento,
