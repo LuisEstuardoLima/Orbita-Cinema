@@ -38,7 +38,9 @@ Después de que Supabase confirma la compra, el servidor obtiene los datos persi
 
 > Hasta el Sprint 2 (login) el panel admin no tiene autenticación: no lo desplieguen públicamente con `AUTH_GUARD=off`.
 
-`AUTH_GUARD=off` (por defecto) deja navegar `/perfil` y `/admin/*` mientras la autenticación real no esté lista. Con `AUTH_GUARD=on`, `src/middleware.ts` exige sesión y rol. La fuente única del rol es la BD (`public.usuarios.id_rol` → `public.rol`, ver `supabase/sprint2-auth.sql`): `getRol()` consulta por request y devuelve `Cliente` | `Colaborador` | `Administrador`. El rol NO se lee del JWT ni de metadata editable por el usuario.
+`AUTH_GUARD=off` (por defecto) desactiva el control general del middleware para `/admin/*`. `/perfil` siempre exige una sesión para mostrar datos personales o de compras; las consultas y acciones del perfil operan con el usuario autenticado. Con `AUTH_GUARD=on`, `src/middleware.ts` también exige sesión y rol. La fuente única del rol es la BD (`public.usuarios.id_rol` → `public.rol`, ver `supabase/sprint2-auth.sql`): `getRol()` consulta por request y devuelve `Cliente` | `Colaborador` | `Administrador`. El rol NO se lee del JWT ni de metadata editable por el usuario.
+
+En `/perfil` el cliente puede editar nombre, apellido y teléfono; consultar sus reservas con asientos y estado, volver a descargar el boleto de reservas confirmadas o usadas, y ver el saldo y los movimientos de puntos (1 punto = Q1). El correo se muestra como dato de la cuenta y no se edita desde esta pantalla.
 
 > **Despliegue en Vercel:** la variable `AUTH_GUARD` debe estar en `on` en **Settings → Environment Variables** (Production y Preview). Sin ella el control de acceso no se aplica y cualquier usuario, incluso Cliente o Colaborador, puede abrir `/admin/*` y los reportes. Después de agregarla o cambiarla hay que hacer **Redeploy**, porque solo aplica a despliegues nuevos.
 
