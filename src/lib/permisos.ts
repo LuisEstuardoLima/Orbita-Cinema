@@ -1,5 +1,7 @@
 /**
- * Matriz de permisos por rol (SCRUM-116 / RNF-006 / RNF-015 / SCRUM-139).
+ * Matriz de permisos por rol
+ * (SCRUM-116 / RNF-006 / RNF-015 / SCRUM-139 / SCRUM-135).
+ *
  * ÚNICA fuente de verdad de "quién puede entrar adónde":
  * la leen el middleware, el menú del panel, el inicio del panel
  * y las páginas del servidor.
@@ -17,16 +19,21 @@
  * | Sitio público, compra, /perfil |    ✔    |      ✔      |       ✔       |
  * | /admin (inicio del panel)      |         |      ✔      |       ✔       |
  * | /admin/funciones               |         |      ✔      |       ✔       |
- * | /admin/entradas (validación)   |         |      ✔      |       ✔       |
+ * | /admin/entradas                |         |   consulta  |    consulta    |
+ * | /admin/entradas/validar        |         |      ✔      |       ✔       |
  * | /admin/peliculas               |         |   consulta  |       ✔       |
  * | /admin/salas (y asientos)      |         |   consulta  |       ✔       |
  * | /admin/configuracion           |         |             |       ✔       |
  * | /admin/reportes                |         |             |       ✔       |
  * | /admin/usuarios                |         |   consulta  |       ✔       |
  *
- * "consulta" = el Colaborador puede ENTRAR y ver la información,
+ * "consulta" = el usuario puede ENTRAR y ver la información,
  * pero no crear, editar, dar de baja ni activar/desactivar nada
- * (ver `puedeModificar`).
+ * desde ese módulo.
+ *
+ * En Entradas, la consulta general y el detalle son de solo lectura.
+ * La acción operativa que cambia el estado a "utilizada" vive
+ * exclusivamente en `/admin/entradas/validar`.
  *
  * Las Server Actions de esos módulos siguen exigiendo el rol apropiado,
  * así que aunque alguien intente modificar sin pasar por la pantalla,
@@ -161,8 +168,9 @@ const MODIFICAR: readonly ReglaRuta[] = [
     roles: ROLES_PANEL,
   },
   {
-    // SCRUM-140: validar entradas es una acción operativa de ambos roles (no hay modo consulta).
-    prefix: "/admin/entradas",
+    // SCRUM-140 / SCRUM-135:
+    // solo la pantalla de validación puede cambiar el estado de las entradas.
+    prefix: "/admin/entradas/validar",
     roles: ROLES_PANEL,
   },
   {
