@@ -8,11 +8,14 @@ const PAGE_HEIGHT = 841.89;
 const MARGIN = 48;
 
 const COLORS = {
-  ink: rgb(0.1, 0.12, 0.16),
-  muted: rgb(0.38, 0.41, 0.46),
-  line: rgb(0.86, 0.87, 0.89),
-  accent: rgb(0.85, 0.16, 0.2),
-  light: rgb(0.97, 0.97, 0.98),
+  background: rgb(1, 1, 1),
+  surface: rgb(0.96, 0.96, 0.96),
+  ink: rgb(0.18, 0.18, 0.18),
+  muted: rgb(0.42, 0.42, 0.42),
+  line: rgb(0.85, 0.85, 0.85),
+  accent: rgb(1, 0.635, 0.122),
+  accentInk: rgb(0.12, 0.12, 0.12),
+  light: rgb(0.96, 0.96, 0.96),
 };
 
 export interface DatosBoleto {
@@ -58,27 +61,56 @@ function dibujarLogo(page: PDFPage, regular: PDFFont, bold: PDFFont, top = 32) {
 
   page.drawEllipse({
     x,
-    y: centerY - 15,
-    xScale: 20,
-    yScale: 15,
-    borderColor: COLORS.accent,
-    borderWidth: 1.8,
+    y: centerY - 16,
+    xScale: 16,
+    yScale: 16,
+    color: COLORS.accent,
   });
-  page.drawEllipse({
+  page.drawRectangle({
     x: x + 8,
-    y: centerY - 4,
-    xScale: 4,
-    yScale: 4,
+    y: centerY - 9,
+    width: 16,
+    height: 18,
+    borderColor: COLORS.accentInk,
+    borderWidth: 1.2,
+  });
+  for (const filmX of [x + 13, x + 19]) {
+    page.drawLine({
+      start: { x: filmX, y: centerY - 9 },
+      end: { x: filmX, y: centerY + 9 },
+      thickness: 0.9,
+      color: COLORS.accentInk,
+    });
+  }
+  for (const side of [x + 8, x + 20]) {
+    for (const filmY of [centerY - 5, centerY, centerY + 5]) {
+      page.drawLine({
+        start: { x: side, y: filmY },
+        end: { x: side + 4, y: filmY },
+        thickness: 0.8,
+        color: COLORS.accentInk,
+      });
+    }
+  }
+
+  const wordmarkX = x + 38;
+  const wordmarkY = PAGE_HEIGHT - top - 26;
+  const wordmarkSize = 18;
+  const orbitalText = "ÓRBITA";
+  page.drawText(orbitalText, {
+    x: wordmarkX,
+    y: wordmarkY,
+    size: wordmarkSize,
+    font: bold,
+    color: COLORS.ink,
+  });
+  page.drawText("CINEMA", {
+    x: wordmarkX + bold.widthOfTextAtSize(orbitalText, wordmarkSize) + 7,
+    y: wordmarkY,
+    size: wordmarkSize,
+    font: bold,
     color: COLORS.accent,
   });
-  page.drawLine({
-    start: { x: x - 3, y: centerY },
-    end: { x: x + 23, y: centerY },
-    thickness: 1,
-    color: COLORS.accent,
-  });
-  dibujarTexto(page, "ÓRBITA", x + 34, top + 2, 15, bold, COLORS.ink);
-  dibujarTexto(page, "CINEMA", x + 34, top + 19, 9, regular, COLORS.muted);
 }
 
 function fechaLegible(fecha: string): string {
@@ -118,6 +150,13 @@ export async function crearPdf(datos: DatosBoleto): Promise<Uint8Array> {
   const nuevaPagina = (continuacion = false) => {
     if (pagina > 0) page = pdf.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
     pagina += 1;
+    page.drawRectangle({
+      x: 0,
+      y: 0,
+      width: PAGE_WIDTH,
+      height: PAGE_HEIGHT,
+      color: COLORS.background,
+    });
     dibujarLogo(page, regular, bold);
     dibujarTexto(page, codigo, PAGE_WIDTH - MARGIN - 110, 40, 12, bold, COLORS.accent, {
       maxWidth: 110,
@@ -178,9 +217,9 @@ export async function crearPdf(datos: DatosBoleto): Promise<Uint8Array> {
         y: PAGE_HEIGHT - 373,
         width: PAGE_WIDTH - 2 * MARGIN,
         height: 48,
-        color: COLORS.light,
-        borderColor: COLORS.line,
-        borderWidth: 0.7,
+        color: COLORS.surface,
+        borderColor: COLORS.accent,
+        borderWidth: 1,
       });
       dibujarTexto(page, "TOTAL PAGADO", MARGIN + 12, 338, 9, bold, COLORS.muted);
       dibujarTexto(
