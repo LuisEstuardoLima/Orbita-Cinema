@@ -16,6 +16,7 @@ import {
   ScanLine,
   Search,
   TicketCheck,
+  Users,
 } from "lucide-react";
 
 import { exigirRol } from "@/lib/auth/pagina";
@@ -95,13 +96,23 @@ export default async function Page({
           </p>
         </div>
 
-        <Link
-          href="/admin/entradas/validar"
-          className="btn-primary inline-flex w-fit items-center gap-2"
-        >
-          <ScanLine className="h-4 w-4" />
-          Validar entrada
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/admin/entradas/asistentes"
+            className="btn-ghost inline-flex w-fit items-center gap-2"
+          >
+            <Users className="h-4 w-4" />
+            Personas por función
+          </Link>
+
+          <Link
+            href="/admin/entradas/validar"
+            className="btn-primary inline-flex w-fit items-center gap-2"
+          >
+            <ScanLine className="h-4 w-4" />
+            Validar entrada
+          </Link>
+        </div>
       </header>
 
       <form
@@ -379,8 +390,10 @@ function EstadoBadge({
   > = {
     Vigente:
       "border-emerald-500/40 bg-emerald-500/10 text-emerald-500",
+
     Cancelada:
       "border-destructive/40 bg-destructive/10 text-destructive",
+
     Utilizada:
       "border-secondary/40 bg-secondary/10 text-secondary",
   };
