@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { calcularResumenCompra } from "@/lib/db/compra";
+import { claveColumnaAsiento, crearEtiquetasVisibles } from "@/lib/asientos";
 import {
   getAsientosOcupadosFuncion,
   getDistribucionAsientos,
@@ -180,25 +181,16 @@ export async function bloquearAsientosSeleccion(
       fun.id_sala,
     );
 
-  // La etiqueta visible para el cliente numera solo los asientos vendibles de cada fila
-  // (A1, A2...), ignorando pasillos y asientos deshabilitados. `numero` sigue siendo
-  // la columna física de la cuadrícula, por lo que aquí traducimos etiqueta -> fila/columna.
+  const asientosPorColumna = new Map(
+    distribucion.map((asiento) => [
+      claveColumnaAsiento(asiento.fila, asiento.numero),
+      asiento,
+    ]),
+  );
   const porEtiqueta = new Map<string, (typeof distribucion)[number]>();
-  const filasDistribucion = new Map<string, typeof distribucion>();
-
-  for (const asiento of distribucion) {
-    const lista = filasDistribucion.get(asiento.fila) ?? [];
-    lista.push(asiento);
-    filasDistribucion.set(asiento.fila, lista);
-  }
-
-  for (const [fila, lista] of filasDistribucion) {
-    let numeroVisible = 0;
-    for (const asiento of lista.sort((a, b) => a.numero - b.numero)) {
-      if (asiento.estado !== "normal") continue;
-      numeroVisible += 1;
-      porEtiqueta.set(etiquetaAsiento(fila, numeroVisible), asiento);
-    }
+  for (const [columna, etiqueta] of crearEtiquetasVisibles(distribucion)) {
+    const asiento = asientosPorColumna.get(columna);
+    if (asiento) porEtiqueta.set(etiqueta, asiento);
   }
 
   const elegidos = [];

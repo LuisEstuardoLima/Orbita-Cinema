@@ -28,8 +28,12 @@ export type FuncionOpcion = {
 
 export type AsientoOcupacion = {
   fila: string;
+  /** Número que identifica la butaca al cliente, correlativo sin contar pasillos. */
   numero: number;
-  estado: "ocupado" | "libre";
+  /** Columna física de la cuadrícula; mantiene la posición de pasillos y espacios. */
+  columna: number;
+  tipo: "normal" | "pasillo" | "deshabilitado" | "retirado";
+  estado: "ocupado" | "libre" | "no_aplica";
   /** Solo si está ocupado: pagado ("reservado") o en una compra en curso ("en_compra"). */
   origen: "reservado" | "en_compra" | null;
 };
@@ -128,6 +132,14 @@ export const etiquetaAsiento = (a: Pick<AsientoOcupacion, "fila" | "numero">) =>
 export const ETIQUETA_ESTADO: Record<AsientoOcupacion["estado"], string> = {
   ocupado: "Ocupado",
   libre: "Libre",
+  no_aplica: "No disponible",
+};
+
+export const ETIQUETA_TIPO_ASIENTO: Record<AsientoOcupacion["tipo"], string> = {
+  normal: "Asiento",
+  pasillo: "Pasillo",
+  deshabilitado: "Deshabilitado",
+  retirado: "Retirado del plano",
 };
 
 export const ETIQUETA_ORIGEN: Record<"reservado" | "en_compra", string> = {
@@ -160,8 +172,11 @@ export function esCoherente(r: ReporteOcupacion): boolean {
   const { capacidad, ocupados, reservados, enCompra, disponibles } = r.resumen;
   const enDetalle = r.asientos.filter((a) => a.estado === "ocupado").length;
   const reservadosDetalle = r.asientos.filter((a) => a.origen === "reservado").length;
+  const asientosVendibles = r.asientos.filter(
+    (a) => a.tipo === "normal" || a.estado === "ocupado",
+  ).length;
   return (
-    capacidad === r.asientos.length &&
+    capacidad === asientosVendibles &&
     capacidad === ocupados + disponibles &&
     ocupados === enDetalle &&
     ocupados === reservados + enCompra &&

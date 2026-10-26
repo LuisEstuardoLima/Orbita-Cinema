@@ -7,6 +7,7 @@ import { bloquearAsientosSeleccion, consultarOcupacion, liberarBloqueo } from ".
 import { SiteHeader } from "@/components/cinema/SiteHeader";
 import { SiteFooter } from "@/components/cinema/SiteFooter";
 import { FunctionHeader } from "@/components/cinema/FunctionHeader";
+import { claveColumnaAsiento, crearEtiquetasVisibles } from "@/lib/asientos";
 import {
   etiquetaFuncion,
   fechaCortaFuncion,
@@ -78,14 +79,10 @@ export function AsientosClient(search: Props) {
 
   const filasOrdenadas = Array.from(asientosPorFila.keys()).sort();
 
-  // El administrador numera correlativamente solo las butacas normales de cada fila.
-  // Repetimos esa regla en el mapa del cliente sin alterar el número físico de columna.
-  const etiquetaVisible = (fila: string, numeroColumna: number) => {
-    const normales = (asientosPorFila.get(fila) ?? [])
-      .filter((a) => a.estado === "normal" && a.numero <= numeroColumna)
-      .sort((a, b) => a.numero - b.numero);
-    return `${fila}${normales.length}`;
-  };
+  const etiquetasVisibles = crearEtiquetasVisibles(distribucion);
+  const etiquetaVisible = (fila: string, numeroColumna: number) =>
+    etiquetasVisibles.get(claveColumnaAsiento(fila, numeroColumna)) ??
+    `${fila}${numeroColumna}`;
 
   // SCRUM-120: la ocupación arranca con lo que trajo el servidor y se mantiene al día sola.
   const [ocupadosIds, setOcupadosIds] = useState<number[]>(asientosOcupados);
@@ -315,6 +312,19 @@ export function AsientosClient(search: Props) {
   const continuar = async () => {
     if (!continuarHref || bloqueando) return;
 
+    const etiquetasSeleccionadas = selected.map((key) => {
+      const match = /^([A-Za-z]+)(\d+)$/.exec(key);
+      return match
+        ? etiquetasVisibles.get(
+            claveColumnaAsiento(match[1]!, Number(match[2])),
+          )
+        : undefined;
+    });
+    if (etiquetasSeleccionadas.some((etiqueta) => !etiqueta)) {
+      setErrorBloqueo("No se pudo identificar uno de los asientos seleccionados. Elige de nuevo.");
+      return;
+    }
+
     setBloqueando(true);
     setErrorBloqueo(null);
 
@@ -325,7 +335,9 @@ export function AsientosClient(search: Props) {
         tercera,
         ninos,
       },
-      asientos: selected,
+      asientos: etiquetasSeleccionadas.filter(
+        (etiqueta): etiqueta is string => Boolean(etiqueta),
+      ),
     });
 
     if (!res.ok) {
@@ -484,7 +496,7 @@ export function AsientosClient(search: Props) {
 
             <ul className="mt-4 space-y-3 text-sm">
               <li className="flex items-center gap-3">
-                <span className="h-5 w-5 rounded-[4px] border border-border bg-surface-2" />
+                <span className="h-5 w-5 rounded-[4px] border border-primary/50 bg-primary/10" />
                 Disponible
               </li>
 

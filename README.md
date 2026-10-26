@@ -186,6 +186,8 @@ Después de confirmar una compra, `src/app/pago/actions.ts` obtiene los datos de
 
 El envío tiene un timeout. Si Brevo rechaza el mensaje o ocurre un error, la compra permanece confirmada y el mismo PDF sigue disponible para descargar en la pantalla de confirmación. La pantalla indica el estado del correo; los detalles del fallo quedan en los logs del servidor.
 
+Los boletos PDF se generan al confirmar la compra y se entregan en ese momento por descarga y, si el envío tiene éxito, como adjunto de correo. **No se guardan en Supabase Storage**: la columna `boleto.ruta_pdf` existe por diseño, pero esta implementación no la rellena. Por ahora se pospone la persistencia; si luego se requiere volver a descargar desde el perfil, conviene evaluar un bucket privado y enlaces firmados de duración limitada, revisando las cuotas vigentes del plan.
+
 ### Configurar y probar el envío
 
 1. En Brevo, crea una API key y registra/verifica el remitente que usarás. Configura `BREVO_API_KEY`, `BREVO_FROM_EMAIL` y opcionalmente `BREVO_FROM_NAME` en `.env.local`, como se indica en [Correo de confirmación](#correo-de-confirmación). No uses el prefijo `NEXT_PUBLIC_` ni compartas la API key.
@@ -203,6 +205,12 @@ No requiere script SQL nuevo: se apoya en lo de SCRUM-119 (`supabase/sprint3-blo
 - **Mapa en vivo:** mientras `/asientos` está abierto, el cliente consulta cada 3 segundos la acción de servidor `consultarOcupacion` (y también al volver a la pestaña). Un asiento que otro cliente bloquea o reserva pasa a "Ocupado" sin recargar; si su bloqueo vence, vuelve a verse libre, porque la BD compara con su propio reloj. Se eligió sondeo y no Supabase Realtime a propósito: `detalle_reserva` no es legible con la clave pública, y abrirla solo para esto expondría datos de compras. La acción devuelve únicamente ids de asiento.
 - **Selección afectada:** si otro cliente toma un asiento que yo tenía elegido, se quita de mi selección y aparece un aviso para elegir otro.
 - **Doble reserva:** el índice único parcial `uq_detalle_reserva_asiento_funcion_activo` (`id_funcion`, `id_asiento` donde el detalle está `bloqueado` o `reservado`) hace que la BD rechace un segundo registro sobre el mismo asiento, aunque falle cualquier validación de la aplicación. Si dos clientes pulsan **Continuar** a la vez, `bloquear_asientos` deja pasar solo a uno; el otro recibe "Alguno de los asientos acaba de ser tomado" y el mapa se actualiza al instante.
+
+## Correcciones del mapa de asientos
+
+Antes de desplegar estos cambios en una base existente, ejecutar `supabase/sprint6-mapa-asientos.sql` en Supabase > SQL Editor. El script agrega la marca `asiento.retirado`, reemplaza las RPC del mapa de compra y ocupación, crea el guardado transaccional de distribuciones y recarga el esquema de PostgREST. Los asientos históricos ya no se borran al reconfigurar una sala: las filas referenciadas por reservas se conservan y se retiran del plano activo, protegiendo boletos y reportes anteriores.
+
+La compra convierte las etiquetas visibles (que no cuentan pasillos) a la columna física correspondiente; los boletos usan la misma numeración visible. El reporte incluye la distribución física y distingue butacas, pasillos y posiciones deshabilitadas sin contarlas como capacidad vendible.
 
 ## Validación de entradas (SCRUM-140)
 

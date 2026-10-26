@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 /**
- * Módulos del panel administrativo (SCRUM-112 / SCRUM-139).
+ * Módulos del panel administrativo (SCRUM-112 / SCRUM-139 / SCRUM-135).
  *
  * Es la ÚNICA lista que alimenta el menú lateral (`AdminNav`)
  * y las tarjetas de la página de inicio (`/admin`).
@@ -59,11 +59,10 @@ export const MODULOS_ADMIN: ModuloAdmin[] = [
     disponible: true,
   },
   {
-    // SCRUM-140. SCRUM-135 (listado de entradas vendidas) puede colgar de /admin/entradas.
-    href: "/admin/entradas/validar",
+    href: "/admin/entradas",
     nombre: "Entradas",
     descripcion:
-      "Validar el ingreso de clientes: escanear el QR o buscar la entrada o reserva.",
+      "Consultar entradas vendidas, buscar reservas y validar el ingreso de clientes.",
     icono: ScanLine,
     disponible: true,
   },

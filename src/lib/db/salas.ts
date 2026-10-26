@@ -72,7 +72,7 @@ export async function listSalasAdmin(): Promise<SalaAdmin[]> {
   const [salas, conAsientos] = await Promise.all([
     leerSalas(admin),
     // Ids de sala que ya tienen al menos un asiento guardado.
-    admin.from("asiento").select("id_sala"),
+    admin.from("asiento").select("id_sala").eq("retirado", false),
   ]);
 
   if (salas.error) {
