@@ -184,6 +184,8 @@ Después de confirmar una compra, `src/app/pago/actions.ts` obtiene los datos de
 
 El envío tiene un timeout. Si Brevo rechaza el mensaje o ocurre un error, la compra permanece confirmada y el mismo PDF sigue disponible para descargar en la pantalla de confirmación. La pantalla indica el estado del correo; los detalles del fallo quedan en los logs del servidor.
 
+Los boletos PDF se generan al confirmar la compra y se entregan en ese momento por descarga y, si el envío tiene éxito, como adjunto de correo. **No se guardan en Supabase Storage**: la columna `boleto.ruta_pdf` existe por diseño, pero esta implementación no la rellena. Por ahora se pospone la persistencia; si luego se requiere volver a descargar desde el perfil, conviene evaluar un bucket privado y enlaces firmados de duración limitada, revisando las cuotas vigentes del plan.
+
 ### Configurar y probar el envío
 
 1. En Brevo, crea una API key y registra/verifica el remitente que usarás. Configura `BREVO_API_KEY`, `BREVO_FROM_EMAIL` y opcionalmente `BREVO_FROM_NAME` en `.env.local`, como se indica en [Correo de confirmación](#correo-de-confirmación). No uses el prefijo `NEXT_PUBLIC_` ni compartas la API key.
