@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import {
   ETIQUETA_ESTADO,
   ETIQUETA_ORIGEN,
+  ETIQUETA_TIPO_ASIENTO,
   etiquetaAsiento,
   type ReporteOcupacion,
 } from "@/lib/ocupacion";
@@ -72,7 +73,7 @@ export async function construirExcelOcupacion(r: ReporteOcupacion): Promise<Buff
 
   // ---- Hoja 2: Asientos ----
   const wa = wb.addWorksheet("Asientos");
-  const cab = wa.addRow(["Fila", "Número", "Asiento", "Estado", "Detalle"]);
+  const cab = wa.addRow(["Fila", "Asiento", "Columna física", "Tipo", "Estado", "Detalle"]);
   cab.font = { bold: true, color: { argb: "FFFFFFFF" } };
   cab.alignment = { horizontal: "center" };
   cab.eachCell((c) => {
@@ -81,21 +82,36 @@ export async function construirExcelOcupacion(r: ReporteOcupacion): Promise<Buff
   for (const a of r.asientos) {
     const f = wa.addRow([
       a.fila,
-      a.numero,
-      etiquetaAsiento(a),
+      a.tipo === "normal" || a.estado === "ocupado" ? etiquetaAsiento(a) : "",
+      a.columna,
+      ETIQUETA_TIPO_ASIENTO[a.tipo],
       ETIQUETA_ESTADO[a.estado],
       a.origen ? ETIQUETA_ORIGEN[a.origen] : "",
     ]);
-    f.getCell(4).fill = {
+    f.getCell(5).fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: a.estado === "ocupado" ? "FFFECACA" : "FFBBF7D0" },
+      fgColor: {
+        argb:
+          a.estado === "ocupado"
+            ? "FFFECACA"
+            : a.estado === "libre"
+              ? "FFBBF7D0"
+              : "FFE5E7EB",
+      },
     };
-    f.getCell(2).alignment = { horizontal: "center" };
+    f.getCell(3).alignment = { horizontal: "center" };
   }
-  wa.columns = [{ width: 8 }, { width: 10 }, { width: 10 }, { width: 12 }, { width: 32 }];
+  wa.columns = [
+    { width: 8 },
+    { width: 12 },
+    { width: 16 },
+    { width: 22 },
+    { width: 18 },
+    { width: 32 },
+  ];
   wa.views = [{ state: "frozen", ySplit: 1 }];
-  wa.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 5 } };
+  wa.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 6 } };
 
   return Buffer.from(await wb.xlsx.writeBuffer());
 }

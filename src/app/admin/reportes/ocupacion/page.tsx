@@ -22,6 +22,7 @@ import {
 } from "@/lib/db/ocupacion";
 import {
   ETIQUETA_ESTADO,
+  ETIQUETA_TIPO_ASIENTO,
   ETIQUETA_ORIGEN,
   agruparPorFila,
   etiquetaAsiento,
@@ -274,6 +275,12 @@ function DetalleOcupacion({ r }: { r: ReporteOcupacion }) {
               <span className="h-4 w-4 rounded-[4px] border border-dashed border-muted-foreground bg-muted-foreground/25" />{" "}
               Ocupado (en compra)
             </li>
+            <li className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded-[4px] border border-dashed border-border bg-transparent" /> Pasillo
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded-[4px] bg-muted-foreground/60" /> Deshabilitado
+            </li>
           </ul>
 
           <div className="mt-4 overflow-x-auto">
@@ -284,18 +291,26 @@ function DetalleOcupacion({ r }: { r: ReporteOcupacion }) {
                   <div className="flex gap-1.5">
                     {fila.asientos.map((a) => (
                       <span
-                        key={etiquetaAsiento(a)}
-                        title={`${etiquetaAsiento(a)} — ${ETIQUETA_ESTADO[a.estado]}`}
-                        aria-label={`${etiquetaAsiento(a)} — ${ETIQUETA_ESTADO[a.estado]}`}
+                        key={`${a.fila}-${a.columna}`}
+                        title={`${a.tipo === "normal" ? etiquetaAsiento(a) : ETIQUETA_TIPO_ASIENTO[a.tipo]} — ${ETIQUETA_ESTADO[a.estado]}`}
+                        aria-label={`${a.tipo === "normal" ? etiquetaAsiento(a) : ETIQUETA_TIPO_ASIENTO[a.tipo]} — ${ETIQUETA_ESTADO[a.estado]}`}
                         className={`flex h-8 w-8 select-none items-center justify-center rounded-[4px] text-[11px] font-medium ${
-                          a.estado === "libre"
-                            ? "border border-primary/50 bg-primary/10 text-primary"
-                            : a.origen === "en_compra"
+                          a.estado === "ocupado"
+                            ? a.origen === "en_compra"
                               ? "border border-dashed border-muted-foreground bg-muted-foreground/25 text-foreground"
                               : "bg-muted-foreground/60 text-background"
+                            : a.tipo === "pasillo"
+                              ? "border border-dashed border-border bg-transparent text-muted-foreground/50"
+                              : a.tipo === "deshabilitado" || a.tipo === "retirado"
+                                ? "bg-muted-foreground/60 text-background"
+                                : "border border-primary/50 bg-primary/10 text-primary"
                         }`}
                       >
-                        {a.numero}
+                        {a.tipo === "normal" || a.estado === "ocupado"
+                          ? a.numero
+                          : a.tipo === "pasillo"
+                            ? "·"
+                            : "×"}
                       </span>
                     ))}
                   </div>
@@ -313,16 +328,20 @@ function DetalleOcupacion({ r }: { r: ReporteOcupacion }) {
                 <thead>
                   <tr className="sticky top-0 bg-surface-2 text-left uppercase tracking-wider text-muted-foreground">
                     <th className="px-4 py-2">Fila</th>
-                    <th className="px-4 py-2">Número</th>
+                    <th className="px-4 py-2">Asiento</th>
+                    <th className="px-4 py-2">Columna física</th>
+                    <th className="px-4 py-2">Tipo</th>
                     <th className="px-4 py-2">Estado</th>
                     <th className="px-4 py-2">Detalle</th>
                   </tr>
                 </thead>
                 <tbody>
                   {r.asientos.map((a) => (
-                    <tr key={etiquetaAsiento(a)} className="border-b border-border">
+                    <tr key={`${a.fila}-${a.columna}`} className="border-b border-border">
                       <td className="px-4 py-2">{a.fila}</td>
-                      <td className="px-4 py-2">{a.numero}</td>
+                      <td className="px-4 py-2">{a.tipo === "normal" || a.estado === "ocupado" ? etiquetaAsiento(a) : "—"}</td>
+                      <td className="px-4 py-2">{a.columna}</td>
+                      <td className="px-4 py-2">{ETIQUETA_TIPO_ASIENTO[a.tipo]}</td>
                       <td className={`px-4 py-2 ${a.estado === "ocupado" ? "font-semibold" : "text-muted-foreground"}`}>
                         {ETIQUETA_ESTADO[a.estado]}
                       </td>

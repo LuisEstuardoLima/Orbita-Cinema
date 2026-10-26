@@ -558,11 +558,9 @@ export async function guardarPreciosSala(
 /* =====================================================================
  * SCRUM-110: configuración de asientos de una sala.
  *
- * Guarda el plano físico completo (filas × columnas) de una sala. Cada
- * celda queda en la tabla `asiento` con estado normal | pasillo |
- * deshabilitado. Es un borrado + reinserción de todo el plano, así que
- * solo se permite cuando la sala NO tiene funciones activas (para no
- * invalidar asientos de una función futura).
+ * Guarda el plano físico completo (filas × columnas) de una sala. Los
+ * asientos históricos se retiran del plano en vez de borrarse, para conservar
+ * sus referencias desde detalle_reserva.
  *
  * Al terminar, recalcula `sala.capacidad` = cantidad de asientos "normal"
  * (los pasillos y deshabilitados no cuentan), que es lo que pide el
@@ -670,37 +668,26 @@ export async function guardarDistribucionAsientos(input: {
     };
   }
 
-  // Borra el plano anterior y escribe el nuevo (borrado + reinserción).
-  const { error: borradoError } = await admin
-    .from("asiento")
-    .delete()
-    .eq("id_sala", idSala);
+  const { error: guardadoError } = await admin.rpc(
+    "guardar_distribucion_asientos",
+    {
+      p_sala: idSala,
+      p_distribucion: plano,
+    },
+  );
 
-  if (borradoError) {
+  if (guardadoError) {
+    const error =
+      guardadoError.message.includes("sala_con_funciones_activas")
+        ? "Esta sala tiene funciones activas. Cancélalas o desactívalas antes de modificar la distribución."
+        : guardadoError.message.includes("sala_no_encontrada")
+          ? "La sala no existe."
+          : guardadoError.message.includes("capacidad_excedida")
+            ? `La sala no permite más de ${CAPACIDAD_MAXIMA} asientos disponibles.`
+            : `No se pudo guardar la distribución: ${guardadoError.message}`;
     return {
       ok: false,
-      error: `No se pudo limpiar la distribución anterior: ${borradoError.message}`,
-    };
-  }
-
-  const { error: insercionError } = await admin.from("asiento").insert(plano);
-
-  if (insercionError) {
-    return {
-      ok: false,
-      error: `No se pudo guardar la distribución: ${insercionError.message}`,
-    };
-  }
-
-  const { error: capacidadError } = await admin
-    .from("sala")
-    .update({ capacidad: disponibles })
-    .eq("id", idSala);
-
-  if (capacidadError) {
-    return {
-      ok: false,
-      error: `No se pudo actualizar la capacidad: ${capacidadError.message}`,
+      error,
     };
   }
 

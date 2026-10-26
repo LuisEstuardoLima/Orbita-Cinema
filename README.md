@@ -202,6 +202,12 @@ No requiere script SQL nuevo: se apoya en lo de SCRUM-119 (`supabase/sprint3-blo
 - **Selección afectada:** si otro cliente toma un asiento que yo tenía elegido, se quita de mi selección y aparece un aviso para elegir otro.
 - **Doble reserva:** el índice único parcial `uq_detalle_reserva_asiento_funcion_activo` (`id_funcion`, `id_asiento` donde el detalle está `bloqueado` o `reservado`) hace que la BD rechace un segundo registro sobre el mismo asiento, aunque falle cualquier validación de la aplicación. Si dos clientes pulsan **Continuar** a la vez, `bloquear_asientos` deja pasar solo a uno; el otro recibe "Alguno de los asientos acaba de ser tomado" y el mapa se actualiza al instante.
 
+## Correcciones del mapa de asientos
+
+Antes de desplegar estos cambios en una base existente, ejecutar `supabase/sprint6-mapa-asientos.sql` en Supabase > SQL Editor. El script agrega la marca `asiento.retirado`, reemplaza las RPC del mapa de compra y ocupación, crea el guardado transaccional de distribuciones y recarga el esquema de PostgREST. Los asientos históricos ya no se borran al reconfigurar una sala: las filas referenciadas por reservas se conservan y se retiran del plano activo, protegiendo boletos y reportes anteriores.
+
+La compra convierte las etiquetas visibles (que no cuentan pasillos) a la columna física correspondiente; los boletos usan la misma numeración visible. El reporte incluye la distribución física y distingue butacas, pasillos y posiciones deshabilitadas sin contarlas como capacidad vendible.
+
 ## Validación de entradas (SCRUM-140)
 
 Pantalla `/admin/entradas/validar` (módulo **Entradas** del panel; Colaborador y Administrador). **Antes de usarla hay que ejecutar una vez `supabase/sprint4-validar-entrada.sql` en el SQL Editor de Supabase** (agrega `boleto.validado_por` y la función `validar_entrada`; es idempotente) y correr `bun install` (nueva dependencia `jsqr`, el lector de QR).

@@ -3,10 +3,13 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DatosBoleto } from "@/lib/pdf";
+import { claveColumnaAsiento, crearEtiquetasVisibles } from "@/lib/asientos";
+import { getDistribucionAsientos } from "@/lib/db/asientos";
 
 type FuncionRelacion = {
   fecha: string;
   hora: string;
+  id_sala: number;
   sala: { nombre: string } | null;
   pelicula: { titulo: string; clasificacion: string } | null;
 };
@@ -26,7 +29,7 @@ export async function obtenerDatosBoleto(idReserva: number): Promise<{
     .select(
       `id_reserva, nombre_comprador, correo_comprador,
        funcion:funcion!inner(
-         fecha, hora, sala:sala(nombre), pelicula:pelicula(titulo, clasificacion)
+         fecha, hora, id_sala, sala:sala(nombre), pelicula:pelicula(titulo, clasificacion)
        )`,
     )
     .eq("id_reserva", idReserva)
@@ -78,6 +81,8 @@ export async function obtenerDatosBoleto(idReserva: number): Promise<{
   if (!funcion.pelicula || !funcion.sala) {
     throw new Error("[boleto] La función no tiene película o sala asociada.");
   }
+  const distribucion = await getDistribucionAsientos(funcion.id_sala);
+  const etiquetas = crearEtiquetasVisibles(distribucion);
 
   return {
     correoComprador: reserva.correo_comprador,
@@ -96,7 +101,17 @@ export async function obtenerDatosBoleto(idReserva: number): Promise<{
           ? [
               {
                 fila: detalle.asiento.fila,
-                numero: detalle.asiento.numero,
+                numero:
+                  Number(
+                    etiquetas
+                      .get(
+                        claveColumnaAsiento(
+                          detalle.asiento.fila,
+                          detalle.asiento.numero,
+                        ),
+                      )
+                      ?.replace(/^[A-Za-z]+/, ""),
+                  ) || detalle.asiento.numero,
                 tipoEntrada: detalle.tipo_entrada,
               },
             ]

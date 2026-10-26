@@ -26,6 +26,7 @@ export async function getDistribucionAsientos(
     .from("asiento")
     .select("id, id_sala, fila, numero, estado")
     .eq("id_sala", salaId)
+    .eq("retirado", false)
     .order("fila")
     .order("numero");
 
@@ -43,7 +44,8 @@ export async function salaTieneAsientos(salaId: number): Promise<boolean> {
   const { count, error } = await admin
     .from("asiento")
     .select("id", { count: "exact", head: true })
-    .eq("id_sala", salaId);
+    .eq("id_sala", salaId)
+    .eq("retirado", false);
 
   if (error) {
     throw new Error(`asiento: ${error.message}`);
