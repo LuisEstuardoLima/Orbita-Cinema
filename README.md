@@ -26,6 +26,8 @@ Next.js se sigue ejecutando con Node (v20+); Bun se usa como gestor de paquetes 
 
 `AUTH_GUARD=off` (por defecto) deja navegar `/perfil` y `/admin/*` mientras la autenticación real no esté lista. Con `AUTH_GUARD=on`, `src/middleware.ts` exige sesión y rol. La fuente única del rol es la BD (`public.usuarios.id_rol` → `public.rol`, ver `supabase/sprint2-auth.sql`): `getRol()` consulta por request y devuelve `Cliente` | `Colaborador` | `Administrador`. El rol NO se lee del JWT ni de metadata editable por el usuario.
 
+> **Despliegue en Vercel:** la variable `AUTH_GUARD` debe estar en `on` en **Settings → Environment Variables** (Production y Preview). Sin ella el control de acceso no se aplica y cualquier usuario, incluso Cliente o Colaborador, puede abrir `/admin/*` y los reportes. Después de agregarla o cambiarla hay que hacer **Redeploy**, porque solo aplica a despliegues nuevos.
+
 ## Sprint 2 · SCRUM-111 Gestión de funciones
 
 1. En Supabase > SQL Editor ejecutar `supabase/sprint2-funciones.sql` (después de `sprint1.sql`). Asegura `pelicula.duracion_min` (no la cambia si ya existe), completa la duración de las 6 películas de prueba que no la tengan y crea un índice para validar cruces. Es idempotente.
