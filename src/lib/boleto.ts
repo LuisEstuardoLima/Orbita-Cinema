@@ -1,5 +1,3 @@
-"use server";
-
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { DatosBoleto } from "@/lib/pdf";
@@ -16,27 +14,46 @@ type DetalleRelacion = {
   asiento: { fila: string; numero: number } | null;
 };
 
-export async function obtenerDatosBoleto(idReserva: number): Promise<{
+export class BoletoNoDisponibleError extends Error {
+  constructor() {
+    super("El boleto no existe, no pertenece al usuario o ya no está disponible.");
+    this.name = "BoletoNoDisponibleError";
+  }
+}
+
+export async function obtenerDatosBoleto(
+  idReserva: number,
+  idUsuario?: string,
+): Promise<{
   datos: DatosBoleto;
   correoComprador: string;
 }> {
   const admin = createAdminClient();
-  const { data: reserva, error: errorReserva } = await admin
+  let consultaReserva = admin
     .from("reserva")
     .select(
-      `id_reserva, nombre_comprador, correo_comprador,
+      `id_reserva, nombre_comprador, correo_comprador, estado,
        funcion:funcion!inner(
          fecha, hora, sala:sala(nombre), pelicula:pelicula(titulo, clasificacion)
        )`,
     )
-    .eq("id_reserva", idReserva)
-    .eq("estado", "confirmada")
-    .maybeSingle();
+    .eq("id_reserva", idReserva);
+  consultaReserva = idUsuario
+    ? consultaReserva
+        .eq("id_usuario", idUsuario)
+        .in("estado", ["confirmada", "usada", "utilizada", "completada"])
+    : consultaReserva.eq("estado", "confirmada");
+  const { data: reserva, error: errorReserva } =
+    await consultaReserva.maybeSingle();
 
-  if (errorReserva || !reserva || !reserva.funcion || !reserva.correo_comprador) {
+  if (errorReserva) {
     throw new Error(
-      `[boleto] No se pudo leer la reserva confirmada: ${errorReserva?.message ?? "sin datos"}`,
+      `[boleto] No se pudo leer la reserva: ${errorReserva.message}`,
     );
+  }
+  if (!reserva) throw new BoletoNoDisponibleError();
+  if (!reserva.funcion || !reserva.correo_comprador) {
+    throw new Error("[boleto] La reserva no tiene los datos necesarios para generar el boleto.");
   }
 
   const { data: detalles, error: errorDetalles } = await admin
