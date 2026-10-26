@@ -1,9 +1,8 @@
 import "server-only";
-import QRCode from "qrcode";
 import { numeroReserva, quetzales } from "@/lib/compra";
 import type { DatosBoleto } from "@/lib/pdf";
 
-const REMITENTE_DEFECTO = "Órbita Cinema <onboarding@resend.dev>";
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
 const esc = (s: string) =>
   s
@@ -36,19 +35,22 @@ export async function enviarBoletoPorCorreo(
   datos: DatosBoleto,
   pdfBytes: Uint8Array,
 ): Promise<boolean> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.warn("[correo] RESEND_API_KEY no configurada; se omite el envío del boleto.");
+  const apiKey = process.env.BREVO_API_KEY;
+  const remitenteEmail = process.env.BREVO_FROM_EMAIL;
+  const remitenteNombre = process.env.BREVO_FROM_NAME || "Órbita Cinema";
+  if (!apiKey || !remitenteEmail) {
+    const faltantes = [
+      !apiKey && "BREVO_API_KEY",
+      !remitenteEmail && "BREVO_FROM_EMAIL",
+    ].filter(Boolean);
+    console.warn(
+      `[correo] Faltan variables de Brevo (${faltantes.join(", ")}); se omite el envío del boleto.`,
+    );
     return false;
   }
 
   try {
     const codigo = numeroReserva(datos.idReserva);
-    const qr = await QRCode.toBuffer(datos.codigoQr, {
-      type: "png",
-      margin: 1,
-      width: 240,
-    });
     const listaAsientos = datos.asientos
       .map(
         (asiento) =>
@@ -80,10 +82,8 @@ export async function enviarBoletoPorCorreo(
               ${htmlFilas}
             </table>
             <div style="text-align:center;margin-top:24px;">
-              <img src="cid:codigo-qr" alt="Código QR del boleto" width="180" height="180"
-                   style="display:block;margin:0 auto;background:#ffffff;padding:8px;border-radius:8px;" />
               <p style="margin:8px 0 0;font-size:12px;color:#a1a1aa;">
-                Presenta este código QR en la entrada. Adjuntamos tu boleto en PDF.
+                Presenta el código QR incluido en el boleto PDF adjunto.
               </p>
             </div>
           </div>
@@ -93,43 +93,37 @@ export async function enviarBoletoPorCorreo(
         </div>
       </body>`;
 
-    const respuesta = await fetch("https://api.resend.com/emails", {
+    const respuesta = await fetch(BREVO_API_URL, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        "api-key": apiKey,
         "Content-Type": "application/json",
-        "Idempotency-Key": `boleto-${datos.idReserva}`,
       },
       signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
-        from: process.env.RESEND_FROM ?? REMITENTE_DEFECTO,
-        to: [correoComprador],
+        sender: {
+          name: remitenteNombre,
+          email: remitenteEmail,
+        },
+        to: [{ email: correoComprador }],
         subject: `Tu boleto de Órbita Cinema — ${codigo}`,
-        html,
-        attachments: [
+        htmlContent: html,
+        attachment: [
           {
-            filename: `boleto-${codigo}.pdf`,
+            name: `boleto-${codigo}.pdf`,
             content: Buffer.from(pdfBytes).toString("base64"),
-            content_type: "application/pdf",
-          },
-          {
-            filename: `codigo-qr-${codigo}.png`,
-            content: qr.toString("base64"),
-            content_id: "codigo-qr",
-            content_type: "image/png",
-            disposition: "inline",
           },
         ],
       }),
     });
 
     if (!respuesta.ok) {
-      console.error("[correo] Resend respondió", respuesta.status, await respuesta.text());
+      console.error("[correo] Brevo respondió", respuesta.status, await respuesta.text());
       return false;
     }
     return true;
   } catch (error) {
-    console.error("[correo] Error enviando el boleto:", error);
+    console.error("[correo] Error enviando el boleto mediante Brevo:", error);
     return false;
   }
 }

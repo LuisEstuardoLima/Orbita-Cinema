@@ -2,7 +2,7 @@
 
 Sistema web de reservación de entradas de cine (Universidad Galileo – Práctica del Desarrollo de Software I).
 
-**Stack:** Next.js (App Router) + React · Tailwind CSS v4 + shadcn/ui · Supabase (PostgreSQL + Auth) · Vercel · `pdf-lib` + `qrcode` para el boleto · Resend para correo transaccional.
+**Stack:** Next.js (App Router) + React · Tailwind CSS v4 + shadcn/ui · Supabase (PostgreSQL + Auth) · Vercel · `pdf-lib` + `qrcode` para el boleto · Brevo para correo transaccional.
 
 ## Puesta en marcha
 
@@ -16,16 +16,17 @@ Next.js se sigue ejecutando con Node (v20+); Bun se usa como gestor de paquetes 
 
 ### Correo de confirmación
 
-El envío del boleto usa la API de Resend. Configura estas variables solo en el servidor, en `.env.local` para desarrollo o en las variables de entorno del despliegue:
+El envío del boleto usa la API transaccional de Brevo. Configura estas variables solo en el servidor, en `.env.local` para desarrollo o en las variables de entorno del despliegue:
 
 ```dotenv
-RESEND_API_KEY=re_tu_clave
-RESEND_FROM="Órbita Cinema <boletos@tu-dominio-verificado.com>"
+BREVO_API_KEY=tu_api_key_de_brevo
+BREVO_FROM_EMAIL=boletos@tu-remitente-verificado.com
+BREVO_FROM_NAME="Órbita Cinema"
 ```
 
-`RESEND_API_KEY` es necesaria para enviar. `RESEND_FROM` es opcional en desarrollo y por defecto usa `Órbita Cinema <onboarding@resend.dev>`; para producción configura un remitente de un dominio verificado en Resend. No publiques ni subas la API key al repositorio.
+`BREVO_API_KEY` y `BREVO_FROM_EMAIL` son necesarias para enviar; `BREVO_FROM_NAME` es opcional y por defecto usa `Órbita Cinema`. El remitente debe estar registrado y verificado en Brevo. Nunca publiques ni subas la API key al repositorio. Las credenciales SMTP usadas por Supabase Auth para recuperar contraseñas son independientes de estas variables.
 
-Después de que Supabase confirma la compra, el servidor obtiene los datos persistidos, genera el PDF y envía ese mismo archivo como adjunto. Un fallo o timeout de Resend no revierte la compra: se registra en los logs y el cliente todavía puede descargar el PDF desde la confirmación. Sin `RESEND_API_KEY`, el correo se omite y la pantalla muestra el aviso correspondiente.
+Después de que Supabase confirma la compra, el servidor obtiene los datos persistidos, genera el PDF y envía ese mismo archivo como adjunto a través de Brevo. Un fallo o timeout del proveedor no revierte la compra: se registra en los logs y el cliente todavía puede descargar el PDF desde la confirmación. Si faltan las variables requeridas, el correo se omite y la pantalla muestra el aviso correspondiente.
 
 ## Sprint 1 (SCRUM-11 a 17, 101, 103, 104, 106)
 
@@ -179,15 +180,15 @@ Al presionar **Continuar** en `/asientos`, los asientos elegidos quedan bloquead
 
 Después de confirmar una compra, `src/app/pago/actions.ts` obtiene los datos definitivos de la reserva, crea el PDF desde `src/lib/pdf.ts` y lo envía a la dirección guardada del comprador mediante `src/lib/correo.ts`. El mensaje incluye número de reserva, película, función, sala, asientos y total pagado; adjunta el PDF y muestra el QR. El PDF usa la misma información e incluye la clasificación y el tipo de entrada de cada asiento.
 
-El envío tiene un timeout y una clave de idempotencia por reserva para evitar que un reintento de la misma compra envíe duplicados. Si Resend falla, la compra permanece confirmada y el mismo PDF sigue disponible para descargar en la pantalla de confirmación. La pantalla indica el estado del correo; los detalles del fallo quedan en los logs del servidor.
+El envío tiene un timeout. Si Brevo rechaza el mensaje o ocurre un error, la compra permanece confirmada y el mismo PDF sigue disponible para descargar en la pantalla de confirmación. La pantalla indica el estado del correo; los detalles del fallo quedan en los logs del servidor.
 
 ### Configurar y probar el envío
 
-1. Crea una API key en Resend y configura `RESEND_API_KEY` y `RESEND_FROM` en `.env.local`, siguiendo la sección [Correo de confirmación](#correo-de-confirmación). No uses el prefijo `NEXT_PUBLIC_` ni compartas la API key.
-2. Para una prueba limitada, puedes usar `RESEND_FROM="Órbita Cinema <onboarding@resend.dev>"`. Resend restringe este remitente de prueba: el destinatario debe estar permitido por Resend (normalmente, la dirección asociada a la cuenta). Para enviar a los correos personales de compañeros o clientes, verifica un dominio que controles en Resend y usa una dirección de ese dominio como remitente. No uses una dirección `@gmail.com` como remitente: Gmail no es un dominio que puedas verificar para enviar desde Resend.
+1. En Brevo, crea una API key y registra/verifica el remitente que usarás. Configura `BREVO_API_KEY`, `BREVO_FROM_EMAIL` y opcionalmente `BREVO_FROM_NAME` en `.env.local`, como se indica en [Correo de confirmación](#correo-de-confirmación). No uses el prefijo `NEXT_PUBLIC_` ni compartas la API key.
+2. El remitente tiene que estar autorizado por Brevo. Si la cuenta permite verificar una dirección individual, completa la verificación por correo. Si Brevo exige autenticación DNS, necesitarás acceso a un dominio propio o de la universidad; no se puede autenticar `gmail.com` porque pertenece a Google.
 3. Reinicia el servidor de desarrollo después de cambiar `.env.local` para que Next.js cargue las variables nuevas.
 4. En la aplicación, completa una compra de prueba y confirma el pago. El flujo de tarjeta es simulado y no realiza un cargo bancario. En la pantalla de confirmación, comprueba que aparece el botón **Descargar boleto PDF**; después revisa el correo del comprador y la carpeta de spam para encontrar el mensaje con el PDF adjunto.
-5. En Resend, revisa **Logs** para confirmar el destinatario, remitente y estado del envío. Si aparece un `403`, comprueba que el remitente pertenece al dominio verificado y que el destinatario está permitido para el modo de prueba.
+5. En Brevo, revisa **Transactional → Logs** para confirmar el destinatario, remitente y estado del envío. Si falla, revisa también los logs del servidor y confirma que la API key y el remitente sean válidos y estén habilitados para envío transaccional.
 
 Si el correo no se envía, la compra sigue confirmada. Descarga el PDF desde la pantalla de confirmación y revisa los logs del servidor para ver el error; no vuelvas a comprar solo para reintentar el correo.
 
