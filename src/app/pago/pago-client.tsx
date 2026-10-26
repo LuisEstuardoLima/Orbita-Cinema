@@ -785,7 +785,7 @@ export function PagoClient(search: Props) {
               .
             </p>
           )}
-          {correoEnviado === false && (
+          {!boletoError && correoEnviado === false && (
             <p className="text-xs text-muted-foreground">
               No pudimos enviar el correo de confirmación.
               {pdfBase64 && " Descarga el boleto PDF desde aquí."}

@@ -2,7 +2,7 @@
 
 Sistema web de reservación de entradas de cine (Universidad Galileo – Práctica del Desarrollo de Software I).
 
-**Stack (según la documentación final):** Next.js (App Router) + React · Tailwind CSS v4 + shadcn/ui · Supabase (PostgreSQL + Auth) · Vercel · `pdf-lib` + `qrcode` para el boleto · servicio de correo transaccional (Resend o Nodemailer, por definir).
+**Stack:** Next.js (App Router) + React · Tailwind CSS v4 + shadcn/ui · Supabase (PostgreSQL + Auth) · Vercel · `pdf-lib` + `qrcode` para el boleto · Resend para correo transaccional.
 
 ## Puesta en marcha
 
@@ -13,6 +13,19 @@ bun run dev                  # http://localhost:3000
 ```
 
 Next.js se sigue ejecutando con Node (v20+); Bun se usa como gestor de paquetes y para correr los scripts.
+
+### Correo de confirmación
+
+El envío del boleto usa la API de Resend. Configura estas variables solo en el servidor, en `.env.local` para desarrollo o en las variables de entorno del despliegue:
+
+```dotenv
+RESEND_API_KEY=re_tu_clave
+RESEND_FROM="Órbita Cinema <boletos@tu-dominio-verificado.com>"
+```
+
+`RESEND_API_KEY` es necesaria para enviar. `RESEND_FROM` es opcional en desarrollo y por defecto usa `Órbita Cinema <onboarding@resend.dev>`; para producción configura un remitente de un dominio verificado en Resend. No publiques ni subas la API key al repositorio.
+
+Después de que Supabase confirma la compra, el servidor obtiene los datos persistidos, genera el PDF y envía ese mismo archivo como adjunto. Un fallo o timeout de Resend no revierte la compra: se registra en los logs y el cliente todavía puede descargar el PDF desde la confirmación. Sin `RESEND_API_KEY`, el correo se omite y la pantalla muestra el aviso correspondiente.
 
 ## Sprint 1 (SCRUM-11 a 17, 101, 103, 104, 106)
 
@@ -114,7 +127,7 @@ Se eliminó lo específico de Lovable/Vite/Nitro (`server.ts`, `start.ts`, `rout
 
 ## Pendiente (según la documentación)
 
-`entradas`, `asientos` y `pago` siguen con datos estáticos de `cinema-data.ts` (sprints 3 y 4), así que al pulsar "Continuar" desde una película de la base de datos esas pantallas todavía muestran el encabezado de prueba. Faltan además: tablas `reserva`, `detalle_reserva`, `pago` y `boleto`, bloqueo temporal de 5 min, boleto PDF + QR, correo de confirmación, login/roles y los paneles de Colaborador y Administrador restantes. (La tabla `asiento` —plano físico por sala— ya existe desde SCRUM-110; ver "Configuración de asientos" más abajo.)
+La lista de pendientes que sigue en este README conserva notas históricas de sprints anteriores; para el estado actual de compra, boletos y correo, consulta las secciones específicas de Sprint 3 y de configuración de correo.
 
 ## Decisiones sobre la baja de películas (leer antes de Sprint 3/4 y 7)
 
@@ -160,7 +173,23 @@ Al presionar **Continuar** en `/asientos`, los asientos elegidos quedan bloquead
 - **Otros clientes:** `asientos_no_disponibles` cuenta como ocupados los reservados y los bloqueos que todavía no vencen. Un bloqueo vencido **no cuenta**, así que los asientos quedan libres a la hora exacta sin depender de ningún proceso. La próxima compra de esa función, o `liberar_bloqueos_vencidos()`, además marca la reserva como `expirada` (al final del script hay un `pg_cron` opcional para correrla cada minuto).
 - **Contador y vencimiento:** `/pago` solo abre con un bloqueo vigente de ese navegador y muestra un contador regresivo (los segundos los calcula la BD). Al llegar a cero, o si se intenta **Pagar** con el bloqueo vencido, avisa y regresa a `/asientos?vencido=1`.
 - **Regresar o cancelar:** "Cambiar asientos" y "Cancelar compra" en `/pago`, y volver a `/asientos`, llaman a `liberar_bloqueo` y los asientos se liberan al instante.
-- **Pendiente para SCRUM-123/124/125:** mientras el comprador invitado no capture sus datos, la reserva guarda `Invitado (pendiente)` / `pendiente@invitado.invalid` (la BD exige nombre y correo no vacíos). Al pagar hay que actualizarlos y pasar `reserva.estado` a `confirmada` y `detalle_reserva.estado` a `reservado`. El pago actual (`/pago`) sigue siendo un prototipo.
+- **Confirmación de compra (SCRUM-123/124/125):** `/pago` recoge los datos del comprador invitado o usa los de su cuenta, y `confirmar_compra` confirma reserva, asientos, pago y boleto dentro de una transacción. La pasarela de tarjeta sigue siendo simulada: no se contacta a un banco real.
+
+## Boleto PDF y correo de confirmación
+
+Después de confirmar una compra, `src/app/pago/actions.ts` obtiene los datos definitivos de la reserva, crea el PDF desde `src/lib/pdf.ts` y lo envía a la dirección guardada del comprador mediante `src/lib/correo.ts`. El mensaje incluye número de reserva, película, función, sala, asientos y total pagado; adjunta el PDF y muestra el QR. El PDF usa la misma información e incluye la clasificación y el tipo de entrada de cada asiento.
+
+El envío tiene un timeout y una clave de idempotencia por reserva para evitar que un reintento de la misma compra envíe duplicados. Si Resend falla, la compra permanece confirmada y el mismo PDF sigue disponible para descargar en la pantalla de confirmación. La pantalla indica el estado del correo; los detalles del fallo quedan en los logs del servidor.
+
+### Configurar y probar el envío
+
+1. Crea una API key en Resend y configura `RESEND_API_KEY` y `RESEND_FROM` en `.env.local`, siguiendo la sección [Correo de confirmación](#correo-de-confirmación). No uses el prefijo `NEXT_PUBLIC_` ni compartas la API key.
+2. Para una prueba limitada, puedes usar `RESEND_FROM="Órbita Cinema <onboarding@resend.dev>"`. Resend restringe este remitente de prueba: el destinatario debe estar permitido por Resend (normalmente, la dirección asociada a la cuenta). Para enviar a los correos personales de compañeros o clientes, verifica un dominio que controles en Resend y usa una dirección de ese dominio como remitente. No uses una dirección `@gmail.com` como remitente: Gmail no es un dominio que puedas verificar para enviar desde Resend.
+3. Reinicia el servidor de desarrollo después de cambiar `.env.local` para que Next.js cargue las variables nuevas.
+4. En la aplicación, completa una compra de prueba y confirma el pago. El flujo de tarjeta es simulado y no realiza un cargo bancario. En la pantalla de confirmación, comprueba que aparece el botón **Descargar boleto PDF**; después revisa el correo del comprador y la carpeta de spam para encontrar el mensaje con el PDF adjunto.
+5. En Resend, revisa **Logs** para confirmar el destinatario, remitente y estado del envío. Si aparece un `403`, comprueba que el remitente pertenece al dominio verificado y que el destinatario está permitido para el modo de prueba.
+
+Si el correo no se envía, la compra sigue confirmada. Descarga el PDF desde la pantalla de confirmación y revisa los logs del servidor para ver el error; no vuelvas a comprar solo para reintentar el correo.
 
 ## Ocupación en tiempo real y doble reserva (SCRUM-120)
 

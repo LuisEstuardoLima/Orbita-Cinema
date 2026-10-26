@@ -98,7 +98,9 @@ export async function enviarBoletoPorCorreo(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "Idempotency-Key": `boleto-${datos.idReserva}`,
       },
+      signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
         from: process.env.RESEND_FROM ?? REMITENTE_DEFECTO,
         to: [correoComprador],
