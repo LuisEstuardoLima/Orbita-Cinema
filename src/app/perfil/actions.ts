@@ -10,6 +10,11 @@ export type PerfilActionState = {
   mensaje: string;
 };
 
+export type ContrasenaActionState = {
+  ok: boolean;
+  mensaje: string;
+};
+
 const perfilSchema = z.object({
   nombre: z.string().trim().min(1, "El nombre es obligatorio.").max(100, "El nombre no puede superar 100 caracteres."),
   apellido: z.string().trim().min(1, "El apellido es obligatorio.").max(100, "El apellido no puede superar 100 caracteres."),
@@ -19,6 +24,14 @@ const perfilSchema = z.object({
     .min(8, "Escribe un teléfono válido (mínimo 8 dígitos).")
     .max(30, "El teléfono no puede superar 30 caracteres.")
     .regex(/^[0-9\s\-+()]+$/, "El teléfono solo puede contener dígitos, espacios, guiones y paréntesis."),
+});
+
+const contrasenaSchema = z.object({
+  actual: z.string().min(1, "Ingresa tu contraseña actual."),
+  nueva: z
+    .string()
+    .min(6, "La nueva contraseña debe tener al menos 6 caracteres."),
+  confirmar: z.string().min(6, "Confirma la nueva contraseña."),
 });
 
 export async function actualizarPerfil(
@@ -67,6 +80,77 @@ export async function actualizarPerfil(
 
   revalidatePath("/perfil");
   return { ok: true, mensaje: "Tus datos personales se actualizaron correctamente." };
+}
+
+export async function cambiarContrasena(
+  _estado: ContrasenaActionState,
+  formData: FormData,
+): Promise<ContrasenaActionState> {
+  const parsed = contrasenaSchema.safeParse({
+    actual: formData.get("contrasenaActual"),
+    nueva: formData.get("contrasenaNueva"),
+    confirmar: formData.get("confirmarContrasena"),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      mensaje: parsed.error.issues[0]?.message ?? "Revisa las contraseñas ingresadas.",
+    };
+  }
+  if (parsed.data.nueva !== parsed.data.confirmar) {
+    return { ok: false, mensaje: "Las nuevas contraseñas no coinciden." };
+  }
+  if (parsed.data.actual === parsed.data.nueva) {
+    return {
+      ok: false,
+      mensaje: "La nueva contraseña debe ser diferente a la actual.",
+    };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: errorSesion,
+  } = await supabase.auth.getUser();
+  if (errorSesion || !user?.email) {
+    return {
+      ok: false,
+      mensaje: "Debes iniciar sesión para cambiar tu contraseña.",
+    };
+  }
+
+  const { error: errorReautenticacion } =
+    await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: parsed.data.actual,
+    });
+  if (errorReautenticacion) {
+    if (errorReautenticacion.code === "invalid_credentials") {
+      return { ok: false, mensaje: "La contraseña actual no es correcta." };
+    }
+    console.error(
+      "[perfil] No se pudo verificar la contraseña actual:",
+      errorReautenticacion,
+    );
+    return {
+      ok: false,
+      mensaje: "No se pudo verificar tu contraseña actual. Inténtalo de nuevo.",
+    };
+  }
+
+  const { error: errorActualizacion } = await supabase.auth.updateUser({
+    password: parsed.data.nueva,
+  });
+  if (errorActualizacion) {
+    console.error("[perfil] No se pudo cambiar la contraseña:", errorActualizacion);
+    return {
+      ok: false,
+      mensaje: "No se pudo cambiar tu contraseña. Inténtalo de nuevo.",
+    };
+  }
+
+  revalidatePath("/", "layout");
+  return { ok: true, mensaje: "Tu contraseña se cambió correctamente." };
 }
 
 export type ReservaHistorial = {

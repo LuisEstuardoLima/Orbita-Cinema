@@ -13,6 +13,7 @@ import {
 } from "./actions";
 import { CancelarReservaModal } from "./CancelarReservaModal";
 import { PerfilForm } from "./PerfilForm";
+import { CambiarContrasenaForm } from "./CambiarContrasenaForm";
 import { getPerfilActual } from "@/lib/auth/perfil";
 import { numeroReserva, quetzales } from "@/lib/compra";
 
@@ -406,6 +407,7 @@ export default async function PerfilPage({
                   telefono={perfil.telefono}
                   email={perfil.email}
                 />
+                <CambiarContrasenaForm />
               </div>
             </div>
           )}
