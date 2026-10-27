@@ -20,6 +20,14 @@ export type FilaEntradaAdmin = {
   fechaReserva: string;
 };
 
+export type ListadoEntradasAdminPaginado = {
+  filas: FilaEntradaAdmin[];
+  total: number;
+  pagina: number;
+  porPagina: number;
+  totalPaginas: number;
+};
+
 export type DetalleEntradaAdmin = {
   idReserva: number;
   nombreComprador: string;
@@ -47,7 +55,7 @@ export type DetalleEntradaAdmin = {
 };
 
 type FilaBd = {
-  id_reserva: number;
+  id_reserva: number | string;
   nombre_comprador: string;
   pelicula: string | null;
   fecha_funcion: string | null;
@@ -86,6 +94,14 @@ type DetalleBd = {
   }[];
 };
 
+type ListadoPaginadoBd = {
+  total: number | string;
+  pagina: number | string;
+  por_pagina: number | string;
+  total_paginas: number | string;
+  filas: FilaBd[];
+};
+
 function mapEstado(
   estadoReserva: string,
   fechaUso: string | null,
@@ -107,44 +123,106 @@ function mapEstado(
   return "Vigente";
 }
 
-export async function listarEntradasAdmin(
-  busqueda?: string,
-): Promise<FilaEntradaAdmin[]> {
-  const { data, error } = await createAdminClient().rpc(
-    "listar_entradas_admin",
+export async function listarEntradasAdminPaginado(
+  busqueda: string | undefined,
+  pagina: number,
+): Promise<ListadoEntradasAdminPaginado> {
+  const admin = createAdminClient();
+  const { data, error } = await admin.rpc(
+    "listar_entradas_admin_paginado",
     {
       p_busqueda: busqueda?.trim() || null,
+      p_pagina: pagina,
+      p_por_pagina: 50,
     },
   );
 
+  if (
+    error?.code === "PGRST202" &&
+    error.message.includes("listar_entradas_admin_paginado")
+  ) {
+    console.warn(
+      "listar_entradas_admin_paginado no está disponible en la caché de Supabase; se usará la consulta anterior. Verifica que supabase/sprint4-consulta-entradas.sql se ejecutó en este proyecto y que la caché de PostgREST se recargó.",
+      error.message,
+    );
+
+    const anterior = await admin.rpc(
+      "listar_entradas_admin",
+      {
+        p_busqueda: busqueda?.trim() || null,
+      },
+    );
+    if (anterior.error) {
+      throw new Error(
+        `listar_entradas_admin: ${anterior.error.message}`,
+      );
+    }
+
+    const filas = ((anterior.data as FilaBd[] | null) ?? []).map(
+      mapFilaEntradaAdmin,
+    );
+    const total = filas.length;
+    const totalPaginas = Math.max(Math.ceil(total / 50), 1);
+    const paginaActual = Math.min(Math.max(pagina, 1), totalPaginas);
+
+    return {
+      total,
+      pagina: paginaActual,
+      porPagina: 50,
+      totalPaginas,
+      filas: filas.slice(
+        (paginaActual - 1) * 50,
+        paginaActual * 50,
+      ),
+    };
+  }
+
   if (error) {
     throw new Error(
-      `listar_entradas_admin: ${error.message}`,
+      `listar_entradas_admin_paginado: ${error.message}`,
     );
   }
 
-  return ((data as FilaBd[] | null) ?? []).map(
-    (fila): FilaEntradaAdmin => ({
-      idReserva: Number(fila.id_reserva),
-      nombreComprador:
-        fila.nombre_comprador || "—",
-      pelicula: fila.pelicula || "—",
-      fechaFuncion: fila.fecha_funcion,
-      horaFuncion: fila.hora_funcion
-        ? String(fila.hora_funcion).slice(0, 5)
-        : null,
-      sala: fila.sala || "—",
-      asientos: fila.asientos ?? [],
-      cantidadAsientos: Number(
-        fila.cantidad_asientos ?? 0,
-      ),
-      estado: mapEstado(
-        fila.estado_reserva,
-        fila.fecha_uso,
-      ),
-      fechaReserva: fila.fecha_reserva,
-    }),
-  );
+  const resultado = data as ListadoPaginadoBd | null;
+  if (!resultado) {
+    throw new Error(
+      "listar_entradas_admin_paginado: respuesta vacía",
+    );
+  }
+
+  return {
+    total: Number(resultado.total),
+    pagina: Number(resultado.pagina),
+    porPagina: Number(resultado.por_pagina),
+    totalPaginas: Number(resultado.total_paginas),
+    filas: (resultado.filas ?? []).map(mapFilaEntradaAdmin),
+  };
+}
+
+function mapFilaEntradaAdmin(
+  fila: FilaBd,
+): FilaEntradaAdmin {
+  const idReserva = Number(fila.id_reserva);
+  if (!Number.isSafeInteger(idReserva) || idReserva <= 0) {
+    throw new Error(
+      `listar_entradas_admin: ID de reserva inválido (${String(fila.id_reserva)})`,
+    );
+  }
+
+  return {
+    idReserva,
+    nombreComprador: fila.nombre_comprador || "—",
+    pelicula: fila.pelicula || "—",
+    fechaFuncion: fila.fecha_funcion,
+    horaFuncion: fila.hora_funcion
+      ? String(fila.hora_funcion).slice(0, 5)
+      : null,
+    sala: fila.sala || "—",
+    asientos: fila.asientos ?? [],
+    cantidadAsientos: Number(fila.cantidad_asientos ?? 0),
+    estado: mapEstado(fila.estado_reserva, fila.fecha_uso),
+    fechaReserva: fila.fecha_reserva,
+  };
 }
 
 export async function obtenerDetalleEntradaAdmin(

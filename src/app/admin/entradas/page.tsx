@@ -12,22 +12,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
+  ArrowLeft,
+  ArrowRight,
   Eye,
-  ScanLine,
-  Search,
   TicketCheck,
-  Users,
 } from "lucide-react";
 
 import { exigirRol } from "@/lib/auth/pagina";
 import { numeroReserva } from "@/lib/compra";
 import {
-  listarEntradasAdmin,
+  listarEntradasAdminPaginado,
   type EstadoEntradaAdmin,
-  type FilaEntradaAdmin,
 } from "@/lib/db/entradas";
 import { ROLES_PANEL } from "@/lib/permisos";
 import type { SP } from "@/lib/search-params";
+import { EntradasNav } from "./EntradasNav";
+import { EntradasSearch } from "./EntradasSearch";
 
 export const dynamic = "force-dynamic";
 
@@ -61,13 +61,26 @@ export default async function Page({
   const valorBusqueda = obtenerParametro(
     sp.buscar,
   );
+  const paginaSolicitada = Math.min(
+    enteroPositivo(obtenerParametro(sp.pagina)) ?? 1,
+    2_147_483_647,
+  );
 
-  let entradas: FilaEntradaAdmin[] = [];
+  let entradas: Awaited<
+    ReturnType<typeof listarEntradasAdminPaginado>
+  > = {
+    filas: [],
+    total: 0,
+    pagina: 1,
+    porPagina: 50,
+    totalPaginas: 1,
+  };
   let errorConsulta: string | null = null;
 
   try {
-    entradas = await listarEntradasAdmin(
+    entradas = await listarEntradasAdminPaginado(
       valorBusqueda,
+      paginaSolicitada,
     );
   } catch {
     errorConsulta =
@@ -79,11 +92,30 @@ export default async function Page({
 
   const sinResultados =
     !errorConsulta &&
-    entradas.length === 0;
+    entradas.total === 0;
+
+  const parametrosPagina = (pagina: number) => {
+    const parametros = new URLSearchParams();
+    if (valorBusqueda.trim()) {
+      parametros.set("buscar", valorBusqueda);
+    }
+    parametros.set("pagina", String(pagina));
+    return `/admin/entradas?${parametros.toString()}`;
+  };
+
+  const primerResultado =
+    entradas.total === 0
+      ? 0
+      : (entradas.pagina - 1) * entradas.porPagina + 1;
+  const ultimoResultado = Math.min(
+    entradas.pagina * entradas.porPagina,
+    entradas.total,
+  );
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col justify-between gap-4 xl:flex-row xl:items-start">
+      <header className="space-y-4">
+        <EntradasNav actual="entradas" />
         <div>
           <h1 className="text-3xl tracking-wide">
             Entradas
@@ -95,79 +127,9 @@ export default async function Page({
             por nombre del cliente.
           </p>
         </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Link
-            href="/admin/entradas/asistentes"
-            className="btn-ghost inline-flex w-fit items-center gap-2"
-          >
-            <Users className="h-4 w-4" />
-            Personas por función
-          </Link>
-
-          <Link
-            href="/admin/entradas/validar"
-            className="btn-primary inline-flex w-fit items-center gap-2"
-          >
-            <ScanLine className="h-4 w-4" />
-            Validar entrada
-          </Link>
-        </div>
       </header>
 
-      <form
-        method="get"
-        className="card-surface p-6"
-      >
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
-          <div className="flex-1">
-            <label
-              htmlFor="buscar"
-              className="label"
-            >
-              Buscar reserva o cliente
-            </label>
-
-            <div className="relative mt-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-              <input
-                id="buscar"
-                name="buscar"
-                type="search"
-                className="field pl-10"
-                defaultValue={valorBusqueda}
-                placeholder="Ej. ORB-000123, 123 o Ana López"
-                autoComplete="off"
-              />
-            </div>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              Puedes escribir el número de reserva
-              completo o una parte del nombre del
-              comprador.
-            </p>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              className="btn-primary"
-            >
-              Buscar
-            </button>
-
-            {buscando && (
-              <Link
-                href="/admin/entradas"
-                className="btn-ghost"
-              >
-                Limpiar
-              </Link>
-            )}
-          </div>
-        </div>
-      </form>
+      <EntradasSearch initialSearch={valorBusqueda} />
 
       <section className="card-surface">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-6">
@@ -186,8 +148,8 @@ export default async function Page({
           {!errorConsulta && (
             <span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-2 px-3 py-1 text-sm text-muted-foreground">
               <TicketCheck className="h-4 w-4" />
-              {entradas.length}{" "}
-              {entradas.length === 1
+              {entradas.total}{" "}
+              {entradas.total === 1
                 ? "reserva"
                 : "reservas"}
             </span>
@@ -221,7 +183,7 @@ export default async function Page({
         )}
 
         {!errorConsulta &&
-          entradas.length > 0 && (
+          entradas.filas.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">
                 <thead>
@@ -261,7 +223,7 @@ export default async function Page({
                 </thead>
 
                 <tbody>
-                  {entradas.map((entrada) => (
+                  {entradas.filas.map((entrada) => (
                     <tr
                       key={entrada.idReserva}
                       className="border-b border-border transition-colors last:border-b-0 hover:bg-surface-2/60"
@@ -340,6 +302,48 @@ export default async function Page({
               </table>
             </div>
           )}
+
+        {!errorConsulta && entradas.total > 0 && (
+          <div className="flex flex-col gap-3 border-t border-border p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Mostrando {primerResultado}–{ultimoResultado} de{" "}
+              {entradas.total} reservas · Página {entradas.pagina} de{" "}
+              {entradas.totalPaginas}
+            </p>
+
+            <nav aria-label="Páginas de reservas" className="flex gap-2">
+              {entradas.pagina > 1 ? (
+                <Link
+                  href={parametrosPagina(entradas.pagina - 1)}
+                  className="btn-ghost inline-flex items-center gap-2"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Anterior
+                </Link>
+              ) : (
+                <span className="btn-ghost inline-flex cursor-not-allowed items-center gap-2 opacity-50">
+                  <ArrowLeft className="h-4 w-4" />
+                  Anterior
+                </span>
+              )}
+
+              {entradas.pagina < entradas.totalPaginas ? (
+                <Link
+                  href={parametrosPagina(entradas.pagina + 1)}
+                  className="btn-ghost inline-flex items-center gap-2"
+                >
+                  Siguiente
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              ) : (
+                <span className="btn-ghost inline-flex cursor-not-allowed items-center gap-2 opacity-50">
+                  Siguiente
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              )}
+            </nav>
+          </div>
+        )}
       </section>
 
       <p className="text-xs text-muted-foreground">
@@ -359,6 +363,20 @@ function obtenerParametro(
   }
 
   return valor ?? "";
+}
+
+function enteroPositivo(
+  valor: string,
+): number | null {
+  if (!/^\d+$/.test(valor)) {
+    return null;
+  }
+
+  const numero = Number(valor);
+
+  return Number.isSafeInteger(numero) && numero > 0
+    ? numero
+    : null;
 }
 
 function formatearFecha(

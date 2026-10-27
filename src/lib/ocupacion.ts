@@ -7,6 +7,8 @@
 import { fechaReal } from "@/lib/reportes";
 import { parseFecha, toFecha } from "@/lib/fechas";
 
+export const DURACION_PROYECCION_DEFECTO_MIN = 120;
+
 export type FiltrosOcupacion = {
   desde: string | null; // YYYY-MM-DD, fecha de la función
   hasta: string | null;
@@ -24,7 +26,52 @@ export type FuncionOpcion = {
   fecha: string; // YYYY-MM-DD
   hora: string; // HH:MM
   activa: boolean;
+  duracionMinutos: number;
 };
+
+export type EstadoFuncionOpcion = "Activa" | "Cancelada" | "Finalizada";
+
+export function estadoFuncionOpcion(
+  funcion: FuncionOpcion,
+  fechaActual: string,
+  horaActual: string,
+): EstadoFuncionOpcion {
+  if (!funcion.activa) return "Cancelada";
+
+  const [anio = NaN, mes = NaN, dia = NaN] = funcion.fecha
+    .split("-")
+    .map(Number);
+  const [hora = NaN, minuto = NaN] = funcion.hora.split(":").map(Number);
+  const [anioActual = NaN, mesActual = NaN, diaActual = NaN] =
+    fechaActual.split("-").map(Number);
+  const [horaAhora = NaN, minutoAhora = NaN] =
+    horaActual.split(":").map(Number);
+  const valores = [
+    anio,
+    mes,
+    dia,
+    hora,
+    minuto,
+    anioActual,
+    mesActual,
+    diaActual,
+    horaAhora,
+    minutoAhora,
+  ];
+  if (valores.some((valor) => !Number.isFinite(valor))) return "Activa";
+
+  const inicio = Date.UTC(anio, mes - 1, dia, hora, minuto);
+  const ahora = Date.UTC(
+    anioActual,
+    mesActual - 1,
+    diaActual,
+    horaAhora,
+    minutoAhora,
+  );
+  const fin = inicio + funcion.duracionMinutos * 60_000;
+
+  return ahora >= fin ? "Finalizada" : "Activa";
+}
 
 export type AsientoOcupacion = {
   fila: string;

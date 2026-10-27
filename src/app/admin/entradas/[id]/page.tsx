@@ -6,8 +6,7 @@
  */
 
 import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowLeft, ScanLine, TicketCheck } from "lucide-react";
+import { TicketCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { exigirRol } from "@/lib/auth/pagina";
@@ -17,6 +16,7 @@ import {
   type EstadoEntradaAdmin,
 } from "@/lib/db/entradas";
 import { ROLES_PANEL } from "@/lib/permisos";
+import { EntradasNav } from "../EntradasNav";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +60,7 @@ export default async function Page({
   } catch {
     return (
       <div className="space-y-6">
+        <EntradasNav actual="detalle" />
         <Encabezado />
 
         <div
@@ -79,6 +80,7 @@ export default async function Page({
 
   return (
     <div className="space-y-6">
+      <EntradasNav actual="detalle" />
       <Encabezado />
 
       <section className="card-surface p-6">
@@ -295,24 +297,6 @@ export default async function Page({
           </div>
         )}
       </section>
-
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/admin/entradas"
-          className="btn-ghost inline-flex items-center gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Volver al listado
-        </Link>
-
-        <Link
-          href={`/admin/entradas/validar`}
-          className="btn-primary inline-flex items-center gap-2"
-        >
-          <ScanLine className="h-4 w-4" />
-          Ir a validar entrada
-        </Link>
-      </div>
 
       <p className="text-xs text-muted-foreground">
         Esta pantalla es únicamente de consulta.

@@ -62,7 +62,7 @@ export async function consultarReporte(f: FiltrosReporte): Promise<FilaReporte[]
   return f.tipo === "ventas" ? filas.filter((x) => x.ventas.cantidad > 0) : filas;
 }
 
-/** Películas para el filtro (todas, incluso las inactivas: puede haber ventas históricas). */
+/** Películas para filtros administrativos, incluidas las que tienen funciones históricas. */
 export async function listPeliculasReporte(): Promise<{ id: number; titulo: string }[]> {
   const { data, error } = await createAdminClient().from("pelicula").select("id, titulo").order("titulo");
   if (error) throw new Error(`pelicula: ${error.message}`);

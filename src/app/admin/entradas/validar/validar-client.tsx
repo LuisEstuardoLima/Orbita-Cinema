@@ -6,6 +6,7 @@ import { EscanerQr } from "@/components/admin/EscanerQr";
 import { validarEntrada } from "../actions";
 import { numeroReserva, quetzales } from "@/lib/compra";
 import type { DatosEntrada, ModoBusqueda, ResultadoValidacion } from "@/lib/validacion";
+import { EntradasNav } from "../EntradasNav";
 
 type Props = {
   hoy: string;
@@ -99,7 +100,8 @@ export function ValidarEntradasClient({ hoy }: Props) {
 
   return (
     <div className="space-y-6">
-      <header>
+      <header className="space-y-4">
+        <EntradasNav actual="validar" />
         <h1 className="text-3xl tracking-wide">Validación de entradas</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Escanea el código QR del boleto o busca la entrada o reserva manualmente. Primero se

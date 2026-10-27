@@ -3,6 +3,7 @@ import { addDays } from "date-fns";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ahoraGuatemala, parseFecha, toFecha } from "@/lib/fechas";
 import type { FuncionRow, PeliculaRow, SalaRow } from "@/lib/db-types";
+import { DURACION_PROYECCION_DEFECTO_MIN } from "@/lib/ocupacion";
 
 /**
  * SCRUM-111: consultas del módulo /admin/funciones.
@@ -15,7 +16,7 @@ import type { FuncionRow, PeliculaRow, SalaRow } from "@/lib/db-types";
 export const LIMPIEZA_MIN = 15;
 
 /** Duración que se asume para una película sin `duracion_min` (columna nullable). */
-export const DURACION_DEFECTO_MIN = 120;
+export const DURACION_DEFECTO_MIN = DURACION_PROYECCION_DEFECTO_MIN;
 
 /** Fila del listado admin: la función con el título de su película y el nombre de su sala. */
 export type FuncionAdmin = {

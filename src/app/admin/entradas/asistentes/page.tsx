@@ -12,11 +12,10 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import { addDays } from "date-fns";
 import {
-  ArrowLeft,
   Mail,
   Search,
-  TicketCheck,
   Users,
 } from "lucide-react";
 
@@ -30,14 +29,20 @@ import {
 } from "@/lib/db/asistentes";
 import {
   consultarOcupacionFuncion,
-  listFuncionesOcupacion,
+  listFuncionesOcupacionPaginadas,
+  obtenerFuncionOcupacionOpcion,
 } from "@/lib/db/ocupacion";
+import { listPeliculasReporte } from "@/lib/db/reportes";
 import {
-  etiquetaFuncionOpcion,
   type FuncionOpcion,
 } from "@/lib/ocupacion";
 import { ROLES_PANEL } from "@/lib/permisos";
 import type { SP } from "@/lib/search-params";
+import { fechaReal } from "@/lib/reportes";
+import { ahoraGuatemala, parseFecha, toFecha } from "@/lib/fechas";
+import { EntradasNav } from "../EntradasNav";
+import { AsistentesFiltros } from "./AsistentesFiltros";
+import { SelectorFunciones } from "./SelectorFunciones";
 
 export const dynamic = "force-dynamic";
 
@@ -97,34 +102,85 @@ export default async function Page({
   const busqueda = obtenerParametro(
     sp.buscar,
   ).trim();
+  const desdeParametro = obtenerParametro(sp.desde).trim();
+  const hastaParametro = obtenerParametro(sp.hasta).trim();
+  const rangoSinFechas =
+    desdeParametro.length === 0 && hastaParametro.length === 0;
+  const ahora = ahoraGuatemala();
+  const fechaHoy = ahora.fecha;
+  const desde = desdeParametro || (rangoSinFechas ? fechaHoy : "");
+  const hasta =
+    hastaParametro ||
+    (rangoSinFechas
+      ? toFecha(addDays(parseFecha(fechaHoy), 7))
+      : "");
+  const pelicula = enteroPositivo(
+    obtenerParametro(sp.pelicula),
+  );
+  const paginaFuncion = Math.min(
+    enteroPositivo(obtenerParametro(sp.pagina)) ?? 1,
+    1_000_000,
+  );
 
   let funciones: FuncionOpcion[] = [];
-  let truncado = false;
+  let totalFunciones = 0;
+  let paginaFunciones = 1;
+  let totalPaginasFunciones = 1;
   let errorFunciones: string | null = null;
+  let peliculas: { id: number; titulo: string }[] = [];
 
-  try {
-    const resultado =
-      await listFuncionesOcupacion({
-        desde: null,
-        hasta: null,
-        idPelicula: null,
-        idSala: null,
-        idFuncion: null,
-      });
-
-    funciones = resultado.funciones;
-    truncado = resultado.truncado;
-  } catch {
+  if (
+    (desde && !fechaReal(desde)) ||
+    (hasta && !fechaReal(hasta))
+  ) {
+    errorFunciones = "La fecha indicada no es válida.";
+  } else if (desde && hasta && desde > hasta) {
     errorFunciones =
-      "No se pudieron consultar las funciones.";
+      "La fecha «Desde» no puede ser posterior a «Hasta».";
+  } else {
+    try {
+      const [resultado, opcionesPelicula] = await Promise.all([
+        listFuncionesOcupacionPaginadas({
+          desde: desde || null,
+          hasta: hasta || null,
+          idPelicula: pelicula,
+          pagina: paginaFuncion,
+        }),
+        listPeliculasReporte(),
+      ]);
+
+      funciones = resultado.funciones;
+      totalFunciones = resultado.total;
+      paginaFunciones = resultado.pagina;
+      totalPaginasFunciones = resultado.totalPaginas;
+      peliculas = opcionesPelicula;
+    } catch {
+      errorFunciones =
+        "No se pudieron consultar las funciones.";
+    }
   }
 
-  const funcionSeleccionada =
+  let funcionSeleccionada =
     idFuncion === null
       ? null
-      : funciones.find(
-          (f) => f.id === idFuncion,
-        ) ?? null;
+      : funciones.find((f) => f.id === idFuncion) ?? null;
+
+  if (
+    idFuncion !== null &&
+    funcionSeleccionada === null &&
+    !errorFunciones
+  ) {
+    try {
+      funcionSeleccionada =
+        await obtenerFuncionOcupacionOpcion(idFuncion);
+      if (funcionSeleccionada) {
+        funciones = [...funciones, funcionSeleccionada];
+      }
+    } catch {
+      errorFunciones =
+        "No se pudo consultar la función seleccionada.";
+    }
+  }
 
   let asistentes: AsistenteFuncion[] = [];
   let ocupacion:
@@ -162,8 +218,7 @@ export default async function Page({
   }
 
   const filtrando =
-    idFuncion !== null &&
-    busqueda.length > 0;
+    idFuncion !== null && busqueda.length > 0;
 
   const sinResultados =
     idFuncion !== null &&
@@ -183,15 +238,8 @@ export default async function Page({
 
   return (
     <div className="space-y-6">
-      <header>
-        <Link
-          href="/admin/entradas"
-          className="mb-4 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-primary"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Volver a Entradas
-        </Link>
-
+      <header className="space-y-4">
+        <EntradasNav actual="asistentes" />
         <h1 className="text-3xl tracking-wide">
           Personas por función y sala
         </h1>
@@ -205,131 +253,12 @@ export default async function Page({
       </header>
 
       <section className="card-surface p-6">
-        <form
-          method="get"
-          className="space-y-5"
-        >
-          <div>
-            <label
-              htmlFor="funcion"
-              className="label"
-            >
-              Función
-            </label>
-
-            <select
-              id="funcion"
-              name="funcion"
-              className="field"
-              defaultValue={
-                idFuncion ?? ""
-              }
-            >
-              <option value="">
-                Selecciona una función
-              </option>
-
-              {funciones.map((funcion) => (
-                <option
-                  key={funcion.id}
-                  value={funcion.id}
-                >
-                  {etiquetaFuncionOpcion(
-                    funcion,
-                  )}
-                </option>
-              ))}
-            </select>
-
-            {truncado && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Se muestran las 300 funciones
-                más recientes.
-              </p>
-            )}
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-[220px_1fr_auto] md:items-end">
-            <div>
-              <label
-                htmlFor="tipo"
-                className="label"
-              >
-                Filtrar por
-              </label>
-
-              <select
-                id="tipo"
-                name="tipo"
-                className="field"
-                defaultValue={tipo}
-              >
-                {TIPOS_BUSQUEDA.map(
-                  (opcion) => (
-                    <option
-                      key={opcion.id}
-                      value={opcion.id}
-                    >
-                      {opcion.etiqueta}
-                    </option>
-                  ),
-                )}
-              </select>
-            </div>
-
-            <div>
-              <label
-                htmlFor="buscar"
-                className="label"
-              >
-                Búsqueda
-              </label>
-
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-
-                <input
-                  id="buscar"
-                  name="buscar"
-                  type="search"
-                  className="field pl-10"
-                  defaultValue={busqueda}
-                  placeholder={
-                    TIPOS_BUSQUEDA.find(
-                      (x) =>
-                        x.id === tipo,
-                    )?.placeholder ??
-                    "Buscar"
-                  }
-                  autoComplete="off"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                type="submit"
-                className="btn-primary"
-              >
-                Consultar
-              </button>
-
-              {(filtrando ||
-                idFuncion !== null) && (
-                <Link
-                  href={
-                    idFuncion !== null
-                      ? `/admin/entradas/asistentes?funcion=${idFuncion}`
-                      : "/admin/entradas/asistentes"
-                  }
-                  className="btn-ghost"
-                >
-                  Limpiar filtro
-                </Link>
-              )}
-            </div>
-          </div>
-        </form>
+        <AsistentesFiltros
+          desde={desde}
+          hasta={hasta}
+          pelicula={pelicula === null ? "" : String(pelicula)}
+          peliculas={peliculas}
+        />
 
         {errorFunciones && (
           <p
@@ -339,22 +268,26 @@ export default async function Page({
             {errorFunciones}
           </p>
         )}
+
       </section>
 
-      {idFuncion === null && (
-        <div className="card-surface p-8 text-center">
-          <Users className="mx-auto h-10 w-10 text-muted-foreground" />
-
-          <h2 className="mt-4 text-xl font-semibold">
-            Selecciona una función
-          </h2>
-
-          <p className="mt-2 text-sm text-muted-foreground">
-            Elige una función para consultar
-            sus asistentes y la ocupación de
-            la sala.
-          </p>
-        </div>
+      {errorFunciones ? null : totalFunciones === 0 ? (
+        <p role="status" className="card-surface px-6 py-4 text-sm text-muted-foreground">
+          No se encontraron funciones con los filtros seleccionados.
+        </p>
+      ) : (
+        <SelectorFunciones
+          funciones={funciones}
+          funcionSeleccionada={idFuncion}
+          fechaActual={ahora.fecha}
+          horaActual={ahora.hora}
+          desde={desde}
+          hasta={hasta}
+          pelicula={pelicula === null ? "" : String(pelicula)}
+          pagina={paginaFunciones}
+          total={totalFunciones}
+          totalPaginas={totalPaginasFunciones}
+        />
       )}
 
       {idFuncion !== null &&
@@ -367,23 +300,17 @@ export default async function Page({
                 </p>
 
                 <p className="mt-2 font-semibold">
-                  {ocupacion?.funcion
-                    .pelicula ??
-                    funcionSeleccionada
-                      ?.pelicula ??
+                  {ocupacion?.funcion.pelicula ??
+                    funcionSeleccionada?.pelicula ??
                     "—"}
                 </p>
 
                 <p className="mt-1 text-sm text-muted-foreground">
                   {ocupacion
-                    ? `${formatearFecha(
-                        ocupacion.funcion
-                          .fecha,
-                      )} · ${
-                        ocupacion.funcion
-                          .hora
-                      } Hrs.`
-                    : "—"}
+                    ? `${formatearFecha(ocupacion.funcion.fecha)} · ${ocupacion.funcion.hora} Hrs.`
+                    : funcionSeleccionada
+                      ? `${formatearFecha(funcionSeleccionada.fecha)} · ${funcionSeleccionada.hora} Hrs.`
+                      : "—"}
                 </p>
               </div>
 
@@ -394,18 +321,15 @@ export default async function Page({
 
                 <p className="mt-2 font-semibold">
                   {ocupacion?.funcion.sala ??
-                    funcionSeleccionada
-                      ?.sala ??
+                    funcionSeleccionada?.sala ??
                     "—"}
                 </p>
 
-                {ocupacion &&
-                  !ocupacion.funcion
-                    .activa && (
-                    <p className="mt-1 text-sm font-medium text-destructive">
-                      Función cancelada
-                    </p>
-                  )}
+                {ocupacion && !ocupacion.funcion.activa && (
+                  <p className="mt-1 text-sm font-medium text-destructive">
+                    Función cancelada
+                  </p>
+                )}
               </div>
 
               <div className="card-surface p-5">
@@ -414,21 +338,100 @@ export default async function Page({
                 </p>
 
                 <p className="mt-2 text-2xl font-semibold text-primary">
-                  {reservados} /{" "}
-                  {capacidad}
+                  {reservados} / {capacidad}
                 </p>
 
                 <p className="mt-1 text-sm text-muted-foreground">
                   Asientos reservados ·{" "}
-                  {porcentajeReservado.toLocaleString(
-                    "es-GT",
-                    {
-                      maximumFractionDigits: 2,
-                    },
-                  )}
+                  {porcentajeReservado.toLocaleString("es-GT", {
+                    maximumFractionDigits: 2,
+                  })}
                   %
                 </p>
               </div>
+            </section>
+
+            <section className="card-surface p-6">
+              <p className="mb-4 text-sm text-muted-foreground">
+                Filtra las reservas de esta función por ID de entrada, nombre o
+                correo electrónico.
+              </p>
+              <form
+                method="get"
+                className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)_auto] md:items-end"
+              >
+                <input type="hidden" name="funcion" value={idFuncion} />
+                <input type="hidden" name="desde" value={desde} />
+                <input type="hidden" name="hasta" value={hasta} />
+                {pelicula !== null && (
+                  <input
+                    type="hidden"
+                    name="pelicula"
+                    value={pelicula}
+                  />
+                )}
+                <input
+                  type="hidden"
+                  name="pagina"
+                  value={paginaFuncion}
+                />
+                <div>
+                  <label htmlFor="tipo" className="label">
+                    Filtrar por
+                  </label>
+                  <select
+                    id="tipo"
+                    name="tipo"
+                    className="field"
+                    defaultValue={tipo}
+                  >
+                    {TIPOS_BUSQUEDA.map((opcion) => (
+                      <option key={opcion.id} value={opcion.id}>
+                        {opcion.etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="buscar" className="label">
+                    Búsqueda
+                  </label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <input
+                      id="buscar"
+                      name="buscar"
+                      type="search"
+                      className="field pl-10"
+                      defaultValue={busqueda}
+                      placeholder={
+                        TIPOS_BUSQUEDA.find((x) => x.id === tipo)
+                          ?.placeholder ?? "Buscar"
+                      }
+                      autoComplete="off"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button type="submit" className="btn-primary">
+                    Consultar
+                  </button>
+                  <Link
+                    href={`/admin/entradas/asistentes?${new URLSearchParams({
+                      desde,
+                      hasta,
+                      ...(pelicula !== null
+                        ? { pelicula: String(pelicula) }
+                        : {}),
+                      funcion: String(idFuncion),
+                      pagina: String(paginaFuncion),
+                    }).toString()}`}
+                    className="btn-ghost"
+                  >
+                    Limpiar búsqueda
+                  </Link>
+                </div>
+              </form>
             </section>
 
             <section className="card-surface">
